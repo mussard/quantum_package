@@ -14,6 +14,47 @@ use bitmasks
 END_PROVIDER
 
 
+BEGIN_PROVIDER [ double precision, psi_ref_coef_transp, (n_states,psi_det_size) ]
+ implicit none
+ BEGIN_DOC
+! Transposed psi_ref_coef
+ END_DOC
+ integer :: i,j
+ do j=1,N_det_ref
+   do i=1, n_states
+     psi_ref_coef_transp(i,j) = psi_ref_coef(j,i)
+   enddo
+ enddo
+END_PROVIDER
+
+BEGIN_PROVIDER [ double precision, psi_ref_coef_normalized,  (psi_det_size,n_states) ]
+ implicit none
+ BEGIN_DOC
+! Normalized coefficients of the reference
+ END_DOC
+ integer :: i,j,k
+ do k=1,N_states
+   do j=1,N_det_ref
+     psi_ref_coef_normalized(j,k) = psi_ref_coef(j,k)
+   enddo
+   call normalize(psi_ref_coef_normalized(1,k), N_det_ref)
+ enddo
+
+END_PROVIDER
+
+
+BEGIN_PROVIDER [ double precision, psi_non_ref_coef_transp, (n_states,psi_det_size) ]
+ implicit none
+ BEGIN_DOC
+! Transposed psi_non_ref_coef
+ END_DOC
+ integer :: i,j
+ do j=1,N_det_non_ref
+   do i=1, n_states
+     psi_non_ref_coef_transp(i,j) = psi_non_ref_coef(j,i)
+   enddo
+ enddo
+END_PROVIDER
 
  BEGIN_PROVIDER [ integer(bit_kind), psi_non_ref,  (N_int,2,psi_det_size) ]
 &BEGIN_PROVIDER [ double precision, psi_non_ref_coef, (psi_det_size,n_states) ]
@@ -56,6 +97,9 @@ END_PROVIDER
    endif
  enddo
  N_det_non_ref = i_non_ref
+ if (N_det_non_ref < 1) then
+   print *,  'Warning : All determinants are in the reference'
+ endif
 END_PROVIDER
 
  BEGIN_PROVIDER [ integer(bit_kind), psi_non_ref_restart,  (N_int,2,psi_det_size) ]
@@ -125,7 +169,7 @@ BEGIN_PROVIDER [double precision, H_matrix_ref, (N_det_ref,N_det_ref)]
   enddo
 END_PROVIDER
 
- BEGIN_PROVIDER [double precision, psi_coef_ref_diagonalized, (N_det_ref,N_states)]
+ BEGIN_PROVIDER [double precision, psi_ref_coef_diagonalized, (N_det_ref,N_states)]
 &BEGIN_PROVIDER [double precision, psi_ref_energy_diagonalized, (N_states)]
  implicit none
  integer :: i,j
@@ -137,9 +181,11 @@ END_PROVIDER
   do i = 1, N_states
    psi_ref_energy_diagonalized(i) = eigenvalues(i)
    do j = 1, N_det_ref
-    psi_coef_ref_diagonalized(j,i) = eigenvectors(j,i)
+    psi_ref_coef_diagonalized(j,i) = eigenvectors(j,i)
    enddo
   enddo
+  deallocate (eigenvectors)
+  deallocate (eigenvalues)
 
 
  END_PROVIDER
@@ -263,4 +309,19 @@ integer function get_index_in_psi_ref_sorted_bit(key,Nint)
   enddo
 
 end
+
+BEGIN_PROVIDER [double precision, ref_hamiltonian_matrix, (n_det_ref,n_det_ref)]
+ BEGIN_DOC
+ ! H matrix in the Reference space
+ END_DOC
+ implicit none
+ integer :: i,j
+ double precision :: hij
+ do i = 1, N_det_ref
+  do j = 1, N_det_ref
+   call i_H_j(psi_ref(1,1,i),psi_ref(1,1,j),N_int,hij)
+   ref_hamiltonian_matrix(i,j) = hij
+  enddo
+ enddo
+END_PROVIDER
 

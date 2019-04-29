@@ -7,16 +7,16 @@ BEGIN_PROVIDER [ integer, N_det_generators ]
   END_DOC
   integer                        :: i,k,l
   logical                        :: good
-  call write_time(output_determinants)
+  call write_time(6)
   N_det_generators = 0
   do i=1,N_det
     do l=1,n_cas_bitmask
       good = .True.
       do k=1,N_int
         good = good .and. (                                          &
-            iand(not(cas_bitmask(k,1,l)), psi_det(k,1,i)) ==         &
+            iand(not(cas_bitmask(k,1,l)), psi_det_sorted(k,1,i)) ==         &
             iand(not(cas_bitmask(k,1,l)), HF_bitmask(k,1)) ) .and. ( &
-            iand(not(cas_bitmask(k,2,l)), psi_det(k,2,i)) ==         &
+            iand(not(cas_bitmask(k,2,l)), psi_det_sorted(k,2,i)) ==         &
             iand(not(cas_bitmask(k,2,l)), HF_bitmask(k,2)) )
       enddo
       if (good) then
@@ -28,7 +28,7 @@ BEGIN_PROVIDER [ integer, N_det_generators ]
     endif
   enddo
   N_det_generators = max(N_det_generators,1)
-  call write_int(output_determinants,N_det_generators,'Number of generators')
+  call write_int(6,N_det_generators,'Number of generators')
 END_PROVIDER
 
  BEGIN_PROVIDER [ integer(bit_kind), psi_det_generators, (N_int,2,psi_det_size) ]
@@ -46,9 +46,9 @@ END_PROVIDER
       good = .True.
       do k=1,N_int
         good = good .and. (                                         &
-            iand(not(cas_bitmask(k,1,l)), psi_det(k,1,i)) ==         &
+            iand(not(cas_bitmask(k,1,l)), psi_det_sorted(k,1,i)) ==         &
             iand(not(cas_bitmask(k,1,l)), HF_bitmask(k,1)) .and. (   &
-            iand(not(cas_bitmask(k,2,l)), psi_det(k,2,i)) ==         &
+            iand(not(cas_bitmask(k,2,l)), psi_det_sorted(k,2,i)) ==         &
             iand(not(cas_bitmask(k,2,l)), HF_bitmask(k,2) )) )
       enddo
       if (good) then
@@ -58,8 +58,8 @@ END_PROVIDER
     if (good) then
       m = m+1
       do k=1,N_int
-        psi_det_generators(k,1,m) = psi_det(k,1,i)
-        psi_det_generators(k,2,m) = psi_det(k,2,i)
+        psi_det_generators(k,1,m) = psi_det_sorted(k,1,i)
+        psi_det_generators(k,2,m) = psi_det_sorted(k,2,i)
       enddo
       psi_coef_generators(m,:) = psi_coef(m,:)
     endif

@@ -13,7 +13,7 @@ BEGIN_PROVIDER [ type(map_type), ao_integrals_map ]
   call bielec_integrals_index(ao_num,ao_num,ao_num,ao_num,key_max)
   sze = key_max
   call map_init(ao_integrals_map,sze)
-  print*,  'AO map initialized'
+  print*,  'AO map initialized : ', sze
 END_PROVIDER
 
 subroutine bielec_integrals_index(i,j,k,l,i1)
@@ -44,8 +44,8 @@ subroutine bielec_integrals_index_reverse(i,j,k,l,i1)
   l(1) = ceiling(0.5d0*(dsqrt(8.d0*dble(i2)+1.d0)-1.d0))
   i3   = i1 - ishft(i2*i2-i2,-1)
   k(1) = ceiling(0.5d0*(dsqrt(8.d0*dble(i3)+1.d0)-1.d0))
-  j(1) = i2 - ishft(l(1)*l(1)-l(1),-1)
-  i(1) = i3 - ishft(k(1)*k(1)-k(1),-1)
+  j(1) = int(i2 - ishft(l(1)*l(1)-l(1),-1),4)
+  i(1) = int(i3 - ishft(k(1)*k(1)-k(1),-1),4)
 
               !ijkl
   i(2) = i(1) !ilkj
@@ -100,7 +100,7 @@ subroutine bielec_integrals_index_reverse(i,j,k,l,i1)
       call bielec_integrals_index(i(ii),j(ii),k(ii),l(ii),i2)
       if (i1 /= i2) then
         print *,  i1, i2
-        print *,  i(ii), j(jj), k(jj), l(jj)
+        print *,  i(ii), j(ii), k(ii), l(ii)
         stop 'bielec_integrals_index_reverse failed'
       endif
     endif
@@ -109,8 +109,50 @@ subroutine bielec_integrals_index_reverse(i,j,k,l,i1)
 
 end
 
+ BEGIN_PROVIDER [ integer, ao_integrals_cache_min ]
+&BEGIN_PROVIDER [ integer, ao_integrals_cache_max ]
+ implicit none
+ BEGIN_DOC
+ ! Min and max values of the AOs for which the integrals are in the cache
+ END_DOC
+ ao_integrals_cache_min = max(1,ao_num - 63)
+ ao_integrals_cache_max = ao_num
 
-double precision function get_ao_bielec_integral(i,j,k,l,map)
+END_PROVIDER
+
+BEGIN_PROVIDER [ double precision, ao_integrals_cache, (0:64*64*64*64) ]
+ implicit none
+ BEGIN_DOC
+ ! Cache of AO integrals for fast access
+ END_DOC
+ PROVIDE ao_bielec_integrals_in_map
+ integer                        :: i,j,k,l,ii
+ integer(key_kind)              :: idx
+ real(integral_kind)            :: integral
+ !$OMP PARALLEL DO PRIVATE (i,j,k,l,idx,ii,integral)
+ do l=ao_integrals_cache_min,ao_integrals_cache_max
+   do k=ao_integrals_cache_min,ao_integrals_cache_max
+     do j=ao_integrals_cache_min,ao_integrals_cache_max
+       do i=ao_integrals_cache_min,ao_integrals_cache_max
+         !DIR$ FORCEINLINE
+         call bielec_integrals_index(i,j,k,l,idx)
+         !DIR$ FORCEINLINE
+         call map_get(ao_integrals_map,idx,integral)
+         ii = l-ao_integrals_cache_min
+         ii = ior( ishft(ii,6), k-ao_integrals_cache_min)
+         ii = ior( ishft(ii,6), j-ao_integrals_cache_min)
+         ii = ior( ishft(ii,6), i-ao_integrals_cache_min)
+         ao_integrals_cache(ii) = integral
+       enddo
+     enddo
+   enddo
+ enddo
+ !$OMP END PARALLEL DO
+
+END_PROVIDER
+
+
+double precision function get_ao_bielec_integral(i,j,k,l,map) result(result)
   use map_module
   implicit none
   BEGIN_DOC
@@ -119,18 +161,33 @@ double precision function get_ao_bielec_integral(i,j,k,l,map)
   integer, intent(in)            :: i,j,k,l
   integer(key_kind)              :: idx
   type(map_type), intent(inout)  :: map
+  integer                        :: ii
   real(integral_kind)            :: tmp
-  PROVIDE ao_bielec_integrals_in_map
+  PROVIDE ao_bielec_integrals_in_map ao_integrals_cache ao_integrals_cache_min
   !DIR$ FORCEINLINE
   if (ao_overlap_abs(i,k)*ao_overlap_abs(j,l) < ao_integrals_threshold ) then
     tmp = 0.d0
   else if (ao_bielec_integral_schwartz(i,k)*ao_bielec_integral_schwartz(j,l) < ao_integrals_threshold) then
     tmp = 0.d0
   else
-    call bielec_integrals_index(i,j,k,l,idx)
-    call map_get(map,idx,tmp)
+    ii = l-ao_integrals_cache_min
+    ii = ior(ii, k-ao_integrals_cache_min)
+    ii = ior(ii, j-ao_integrals_cache_min)
+    ii = ior(ii, i-ao_integrals_cache_min)
+    if (iand(ii, -64) /= 0) then
+      !DIR$ FORCEINLINE
+      call bielec_integrals_index(i,j,k,l,idx)
+      !DIR$ FORCEINLINE
+      call map_get(map,idx,tmp)
+    else
+      ii = l-ao_integrals_cache_min
+      ii = ior( ishft(ii,6), k-ao_integrals_cache_min)
+      ii = ior( ishft(ii,6), j-ao_integrals_cache_min)
+      ii = ior( ishft(ii,6), i-ao_integrals_cache_min)
+      tmp = ao_integrals_cache(ii)
+    endif
   endif
-  get_ao_bielec_integral = tmp
+  result = tmp
 end
 
 
@@ -155,16 +212,9 @@ subroutine get_ao_bielec_integrals(j,k,l,sze,out_val)
     return
   endif
   
+  double precision :: get_ao_bielec_integral
   do i=1,sze
-    if (ao_overlap_abs(i,k)*ao_overlap_abs(j,l) < thresh ) then
-      out_val(i) = 0.d0
-    else if (ao_bielec_integral_schwartz(i,k)*ao_bielec_integral_schwartz(j,l) < thresh) then
-      out_val(i)=0.d0
-    else
-      !DIR$ FORCEINLINE
-      call bielec_integrals_index(i,j,k,l,hash)
-      call map_get(ao_integrals_map, hash, out_val(i))
-    endif
+    out_val(i) = get_ao_bielec_integral(i,j,k,l,ao_integrals_map)
   enddo
   
 end
@@ -230,7 +280,6 @@ subroutine clear_ao_map
 end
 
 
-
 !! MO Map
 !! ======
 
@@ -244,11 +293,10 @@ BEGIN_PROVIDER [ type(map_type), mo_integrals_map ]
   call bielec_integrals_index(mo_tot_num,mo_tot_num,mo_tot_num,mo_tot_num,key_max)
   sze = key_max
   call map_init(mo_integrals_map,sze)
-  print*, 'MO map initialized'
+  print*, 'MO map initialized: ', sze
 END_PROVIDER
 
-subroutine insert_into_ao_integrals_map(n_integrals,                 &
-      buffer_i, buffer_values)
+subroutine insert_into_ao_integrals_map(n_integrals,buffer_i, buffer_values)
   use map_module
   implicit none
   BEGIN_DOC
@@ -278,6 +326,60 @@ subroutine insert_into_mo_integrals_map(n_integrals,                 &
   call map_update(mo_integrals_map, buffer_i, buffer_values, n_integrals, thr)
 end
 
+ BEGIN_PROVIDER [ integer*4, mo_integrals_cache_min ]
+&BEGIN_PROVIDER [ integer*4, mo_integrals_cache_max ]
+&BEGIN_PROVIDER [ integer*8, mo_integrals_cache_min_8 ]
+&BEGIN_PROVIDER [ integer*8, mo_integrals_cache_max_8 ]
+ implicit none
+ BEGIN_DOC
+ ! Min and max values of the MOs for which the integrals are in the cache
+ END_DOC
+ mo_integrals_cache_min_8 = max(1_8,elec_alpha_num - 63_8)
+ mo_integrals_cache_max_8 = min(int(mo_tot_num,8),mo_integrals_cache_min_8+127_8)
+ mo_integrals_cache_min   = max(1,elec_alpha_num - 63)
+ mo_integrals_cache_max   = min(mo_tot_num,mo_integrals_cache_min+127)
+
+END_PROVIDER
+
+BEGIN_PROVIDER [ double precision, mo_integrals_cache, (0_8:128_8*128_8*128_8*128_8) ]
+ implicit none
+ BEGIN_DOC
+ ! Cache of MO integrals for fast access
+ END_DOC
+ PROVIDE mo_bielec_integrals_in_map
+ integer*8                      :: i,j,k,l
+ integer*4                      :: i4,j4,k4,l4
+ integer*8                      :: ii
+ integer(key_kind)              :: idx
+ real(integral_kind)            :: integral
+ FREE ao_integrals_cache
+ !$OMP PARALLEL DO PRIVATE (i,j,k,l,i4,j4,k4,l4,idx,ii,integral)
+ do l=mo_integrals_cache_min_8,mo_integrals_cache_max_8
+   l4 = int(l,4)
+   do k=mo_integrals_cache_min_8,mo_integrals_cache_max_8
+     k4 = int(k,4)
+     do j=mo_integrals_cache_min_8,mo_integrals_cache_max_8
+       j4 = int(j,4)
+       do i=mo_integrals_cache_min_8,mo_integrals_cache_max_8
+         i4 = int(i,4)
+         !DIR$ FORCEINLINE
+         call bielec_integrals_index(i4,j4,k4,l4,idx)
+         !DIR$ FORCEINLINE
+         call map_get(mo_integrals_map,idx,integral)
+         ii = l-mo_integrals_cache_min_8
+         ii = ior( ishft(ii,7), k-mo_integrals_cache_min_8)
+         ii = ior( ishft(ii,7), j-mo_integrals_cache_min_8)
+         ii = ior( ishft(ii,7), i-mo_integrals_cache_min_8)
+         mo_integrals_cache(ii) = integral
+       enddo
+     enddo
+   enddo
+ enddo
+ !$OMP END PARALLEL DO
+
+END_PROVIDER
+
+
 double precision function get_mo_bielec_integral(i,j,k,l,map)
   use map_module
   implicit none
@@ -286,14 +388,30 @@ double precision function get_mo_bielec_integral(i,j,k,l,map)
   END_DOC
   integer, intent(in)            :: i,j,k,l
   integer(key_kind)              :: idx
+  integer                        :: ii
+  integer*8                      :: ii_8
   type(map_type), intent(inout)  :: map
   real(integral_kind)            :: tmp
-  PROVIDE mo_bielec_integrals_in_map
-  !DIR$ FORCEINLINE
-  call bielec_integrals_index(i,j,k,l,idx)
-  call map_get(map,idx,tmp)
-  get_mo_bielec_integral = dble(tmp)
+  PROVIDE mo_bielec_integrals_in_map mo_integrals_cache
+  ii = l-mo_integrals_cache_min
+  ii = ior(ii, k-mo_integrals_cache_min)
+  ii = ior(ii, j-mo_integrals_cache_min)
+  ii = ior(ii, i-mo_integrals_cache_min)
+  if (iand(ii, -128) /= 0) then
+    !DIR$ FORCEINLINE
+    call bielec_integrals_index(i,j,k,l,idx)
+    !DIR$ FORCEINLINE
+    call map_get(map,idx,tmp)
+    get_mo_bielec_integral = dble(tmp)
+  else
+    ii_8 = int(l,8)-mo_integrals_cache_min_8
+    ii_8 = ior( ishft(ii_8,7), int(k,8)-mo_integrals_cache_min_8)
+    ii_8 = ior( ishft(ii_8,7), int(j,8)-mo_integrals_cache_min_8)
+    ii_8 = ior( ishft(ii_8,7), int(i,8)-mo_integrals_cache_min_8)
+    get_mo_bielec_integral = mo_integrals_cache(ii_8)
+  endif
 end
+
 
 double precision function mo_bielec_integral(i,j,k,l)
   implicit none
@@ -302,6 +420,8 @@ double precision function mo_bielec_integral(i,j,k,l)
   END_DOC
   integer, intent(in)            :: i,j,k,l
   double precision               :: get_mo_bielec_integral
+  PROVIDE mo_bielec_integrals_in_map mo_integrals_cache
+  !DIR$ FORCEINLINE
   PROVIDE mo_bielec_integrals_in_map
   mo_bielec_integral = get_mo_bielec_integral(i,j,k,l,mo_integrals_map)
   return
@@ -327,42 +447,46 @@ subroutine get_mo_bielec_integrals(j,k,l,sze,out_val,map)
     call bielec_integrals_index(i,j,k,l,hash(i))
   enddo
   
-  if (key_kind == 8) then
+  if (integral_kind == 8) then
     call map_get_many(map, hash, out_val, sze)
   else
     call map_get_many(map, hash, tmp_val, sze)
     ! Conversion to double precision 
     do i=1,sze
-      out_val(i) = tmp_val(i)
+      out_val(i) = dble(tmp_val(i))
     enddo
   endif
 end
 
-subroutine get_mo_bielec_integrals_existing_ik(j,l,sze,out_array,map)
+subroutine get_mo_bielec_integrals_ij(k,l,sze,out_array,map)
   use map_module
   implicit none
   BEGIN_DOC
   ! Returns multiple integrals <ij|kl> in the MO basis, all
-  ! i(1)j(1) 1/r12 k(2)l(2)
-  ! i for j,k,l fixed.
+  ! i(1)j(2) 1/r12 k(1)l(2)
+  ! i, j for k,l fixed.
   END_DOC
-  integer, intent(in)            :: j,l, sze
-  logical, intent(out)           :: out_array(sze,sze)
+  integer, intent(in)            :: k,l, sze
+  double precision, intent(out)  :: out_array(sze,sze)
   type(map_type), intent(inout)  :: map
-  integer                        :: i,k,kk,ll,m
+  integer                        :: i,j,kk,ll,m
   integer(key_kind),allocatable  :: hash(:)
   integer  ,allocatable          :: pairs(:,:), iorder(:)
+  real(integral_kind), allocatable :: tmp_val(:)
+
   PROVIDE mo_bielec_integrals_in_map
-  allocate (hash(sze*sze), pairs(2,sze*sze),iorder(sze*sze))
+  allocate (hash(sze*sze), pairs(2,sze*sze),iorder(sze*sze), &
+  tmp_val(sze*sze))
   
   kk=0
-  do k=1,sze
+  out_array = 0.d0
+  do j=1,sze
    do i=1,sze
     kk += 1
     !DIR$ FORCEINLINE
     call bielec_integrals_index(i,j,k,l,hash(kk))
     pairs(1,kk) = i
-    pairs(2,kk) = k
+    pairs(2,kk) = j
     iorder(kk) = kk
    enddo
   enddo
@@ -376,17 +500,84 @@ subroutine get_mo_bielec_integrals_existing_ik(j,l,sze,out_array,map)
     call i2radix_sort(hash,iorder,kk,-1)
   endif
 
-  call map_exists_many(mo_integrals_map, hash, kk)
+  call map_get_many(mo_integrals_map, hash, tmp_val, kk)
 
   do ll=1,kk
     m = iorder(ll)
     i=pairs(1,m)
-    k=pairs(2,m)
-    out_array(i,k) = (hash(ll) /= 0_8)
+    j=pairs(2,m)
+    out_array(i,j) = tmp_val(ll)
   enddo  
 
-  deallocate(pairs,hash,iorder)
+  deallocate(pairs,hash,iorder,tmp_val)
 end
+
+subroutine get_mo_bielec_integrals_coulomb_ii(k,l,sze,out_val,map)
+  use map_module
+  implicit none
+  BEGIN_DOC
+  ! Returns multiple integrals <ki|li> 
+  ! k(1)i(2) 1/r12 l(1)i(2) :: out_val(i1)
+  ! for k,l fixed.
+  END_DOC
+  integer, intent(in)            :: k,l, sze
+  double precision, intent(out)  :: out_val(sze)
+  type(map_type), intent(inout)  :: map
+  integer                        :: i
+  integer(key_kind)              :: hash(sze)
+  real(integral_kind)            :: tmp_val(sze)
+  PROVIDE mo_bielec_integrals_in_map
+  
+  integer :: kk
+  do i=1,sze
+    !DIR$ FORCEINLINE
+    call bielec_integrals_index(k,i,l,i,hash(i))
+  enddo
+  
+  if (integral_kind == 8) then
+    call map_get_many(map, hash, out_val, sze)
+  else
+    call map_get_many(map, hash, tmp_val, sze)
+    ! Conversion to double precision 
+    do i=1,sze
+      out_val(i) = dble(tmp_val(i))
+    enddo
+  endif
+end
+
+subroutine get_mo_bielec_integrals_exch_ii(k,l,sze,out_val,map)
+  use map_module
+  implicit none
+  BEGIN_DOC
+  ! Returns multiple integrals <ki|il> 
+  ! k(1)i(2) 1/r12 i(1)l(2) :: out_val(i1)
+  ! for k,l fixed.
+  END_DOC
+  integer, intent(in)            :: k,l, sze
+  double precision, intent(out)  :: out_val(sze)
+  type(map_type), intent(inout)  :: map
+  integer                        :: i
+  integer(key_kind)              :: hash(sze)
+  real(integral_kind)            :: tmp_val(sze)
+  PROVIDE mo_bielec_integrals_in_map
+  
+  integer :: kk
+  do i=1,sze
+    !DIR$ FORCEINLINE
+    call bielec_integrals_index(k,i,i,l,hash(i))
+  enddo
+  
+  if (integral_kind == 8) then
+    call map_get_many(map, hash, out_val, sze)
+  else
+    call map_get_many(map, hash, tmp_val, sze)
+    ! Conversion to double precision 
+    do i=1,sze
+      out_val(i) = dble(tmp_val(i))
+    enddo
+  endif
+end
+
 
 integer*8 function get_mo_map_size()
   implicit none
@@ -394,15 +585,6 @@ integer*8 function get_mo_map_size()
   ! Return the number of elements in the MO map
   END_DOC
   get_mo_map_size = mo_integrals_map % n_elements
-end
-
-subroutine clear_mo_map
-  implicit none
-  BEGIN_DOC
-  ! Frees the memory of the MO map
-  END_DOC
-  call map_deinit(mo_integrals_map)
-  FREE mo_integrals_map
 end
 
 BEGIN_TEMPLATE
@@ -417,6 +599,9 @@ subroutine dump_$ao_integrals(filename)
   integer(cache_key_kind), pointer :: key(:)
   real(integral_kind), pointer   :: val(:)
   integer*8                      :: i,j, n
+  if (.not.mpi_master) then
+    return
+  endif
   call ezfio_set_work_empty(.False.)
   open(unit=66,file=filename,FORM='unformatted')
   write(66) integral_kind, key_kind
@@ -502,7 +687,8 @@ integer function load_$ao_integrals(filename)
   integer*8                      :: i
   integer(cache_key_kind), pointer :: key(:)
   real(integral_kind), pointer   :: val(:)
-  integer                        :: iknd, kknd, n, j
+  integer                        :: iknd, kknd
+  integer*8                      :: n, j
   load_$ao_integrals = 1
   open(unit=66,file=filename,FORM='unformatted',STATUS='UNKNOWN')
   read(66,err=98,end=98) iknd, kknd
@@ -532,16 +718,12 @@ integer function load_$ao_integrals(filename)
   return
   99 continue
   call map_deinit($ao_integrals_map)
-  FREE $ao_integrals_map
-  if (.True.) then
-    PROVIDE $ao_integrals_map
-  endif
-  stop 'Problem reading $ao_integrals_map file in work/'
   98 continue
+  stop 'Problem reading $ao_integrals_map file in work/'
   
 end
 
-SUBST [ ao_integrals_map, ao_integrals, ao_num , get_ao_bielec_integral ]
-ao_integrals_map ; ao_integrals ; ao_num ; get_ao_bielec_integral ;;
-mo_integrals_map ; mo_integrals ; mo_tot_num ; get_mo_bielec_integral ;;
+SUBST [ ao_integrals_map, ao_integrals, ao_num ]
+ao_integrals_map ; ao_integrals ; ao_num ;;
+mo_integrals_map ; mo_integrals ; mo_tot_num ;;
 END_TEMPLATE

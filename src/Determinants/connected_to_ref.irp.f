@@ -95,11 +95,12 @@ integer function get_index_in_psi_det_sorted_bit(key,Nint)
       exit
     endif
   enddo
-  i += 1
 
-  if (i > N_det) then
+  if (i >= N_det) then
     return
   endif
+
+  i += 1
 
   !DIR$ FORCEINLINE
   do while (det_search_key(psi_det_sorted_bit(1,1,i),Nint) == det_ref)
@@ -108,8 +109,6 @@ integer function get_index_in_psi_det_sorted_bit(key,Nint)
       continue
     else
       in_wavefunction = .True.
-      !DIR$ IVDEP
-      !DIR$ LOOP COUNT MIN(3)
       do l=2,Nint
         if ( (key(l,1) /= psi_det_sorted_bit(l,1,i)).or.                           &
               (key(l,2) /= psi_det_sorted_bit(l,2,i)) ) then
@@ -154,6 +153,95 @@ integer function get_index_in_psi_det_sorted_bit(key,Nint)
 ! END DEBUG is_in_wf
 end
 
+
+logical function is_connected_to(key,keys,Nint,Ndet)
+  use bitmasks
+  implicit none
+  integer, intent(in)            :: Nint, Ndet
+  integer(bit_kind), intent(in)  :: keys(Nint,2,Ndet)
+  integer(bit_kind), intent(in)  :: key(Nint,2)
+  
+  integer                        :: i, l
+  integer                        :: degree_x2
+  logical, external :: is_generable_cassd
+  
+  ASSERT (Nint > 0)
+  ASSERT (Nint == N_int)
+  
+  is_connected_to = .false.
+
+  do i=1,Ndet
+    degree_x2 = popcnt(xor( key(1,1), keys(1,1,i))) +              &
+        popcnt(xor( key(1,2), keys(1,2,i)))
+    do l=2,Nint
+      degree_x2 = degree_x2 + popcnt(xor( key(l,1), keys(l,1,i))) +&
+          popcnt(xor( key(l,2), keys(l,2,i)))
+    enddo
+    if (degree_x2 > 4) then
+      cycle
+    else
+!       if(.not. is_generable_cassd(keys(1,1,i), key(1,1), Nint)) cycle  !!!Nint==1 !!!!!
+      is_connected_to = .true.
+      return
+    endif
+  enddo
+end
+
+
+logical function is_generable_cassd(det1, det2, Nint) !!! TEST Cl HARD !!!!!
+  use bitmasks
+  implicit none
+  integer, intent(in) :: Nint
+  integer(bit_kind) :: det1(Nint, 2), det2(Nint, 2)
+  integer :: degree, f, exc(0:2, 2, 2), h1, h2, p1, p2, s1, s2, t
+  double precision :: phase
+  
+  is_generable_cassd = .false.
+  call get_excitation(det1, det2, exc, degree, phase, Nint)
+  if(degree == -1) return
+  if(degree == 0) then
+    is_generable_cassd = .true.
+    return
+  end if
+  call decode_exc(exc,degree,h1,p1,h2,p2,s1,s2)
+  if(degree == 1 .and. h1 <= 11) is_generable_cassd = .true.
+  if(degree == 2 .and. h1 <= 11 .and. h2 <= 11) is_generable_cassd = .true.
+end function
+
+
+logical function is_connected_to_by_mono(key,keys,Nint,Ndet)
+  use bitmasks
+  implicit none
+  integer, intent(in)            :: Nint, Ndet
+  integer(bit_kind), intent(in)  :: keys(Nint,2,Ndet)
+  integer(bit_kind), intent(in)  :: key(Nint,2)
+  
+  integer                        :: i, l
+  integer                        :: degree_x2
+  
+  
+  ASSERT (Nint > 0)
+  ASSERT (Nint == N_int)
+  
+  is_connected_to_by_mono = .false.
+
+  do i=1,Ndet
+    degree_x2 = popcnt(xor( key(1,1), keys(1,1,i))) +              &
+        popcnt(xor( key(1,2), keys(1,2,i)))
+    do l=2,Nint
+      degree_x2 = degree_x2 + popcnt(xor( key(l,1), keys(l,1,i))) +&
+          popcnt(xor( key(l,2), keys(l,2,i)))
+    enddo
+    if (degree_x2 > 2) then
+      cycle
+    else
+      is_connected_to_by_mono = .true.
+      return
+    endif
+  enddo
+end
+
+
 integer function connected_to_ref(key,keys,Nint,N_past_in,Ndet)
   use bitmasks
   implicit none
@@ -169,7 +257,7 @@ integer function connected_to_ref(key,keys,Nint,N_past_in,Ndet)
   
   ! output :   0 : not connected
   !            i : connected to determinant i of the past
-  !           -i : is the ith determinant of the refernce wf keys
+  !           -i : is the ith determinant of the reference wf keys
   
   ASSERT (Nint > 0)
   ASSERT (Nint == N_int)
@@ -233,10 +321,12 @@ integer function connected_to_ref(key,keys,Nint,N_past_in,Ndet)
     do i=N_past-1,1,-1
       degree_x2 = popcnt(xor( key(1,1), keys(1,1,i))) +              &
           popcnt(xor( key(1,2), keys(1,2,i)))
-      !DEC$ LOOP COUNT MIN(3)
       do l=2,Nint
         degree_x2 = degree_x2 + popcnt(xor( key(l,1), keys(l,1,i))) +&
             popcnt(xor( key(l,2), keys(l,2,i)))
+        if (degree_x2 > 4) then
+          exit
+        endif
       enddo
       if (degree_x2 > 4) then
         cycle
@@ -337,7 +427,6 @@ integer function connected_to_ref_by_mono(key,keys,Nint,N_past_in,Ndet)
     do i=N_past-1,1,-1
       degree_x2 = popcnt(xor( key(1,1), keys(1,1,i))) +              &
           popcnt(xor( key(1,2), keys(1,2,i)))
-      !DEC$ LOOP COUNT MIN(3)
       do l=2,Nint
         degree_x2 = degree_x2 + popcnt(xor( key(l,1), keys(l,1,i))) +&
             popcnt(xor( key(l,2), keys(l,2,i)))

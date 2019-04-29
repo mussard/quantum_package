@@ -10,7 +10,7 @@ double precision function binom_func(i,j)
   double precision               :: logfact
   integer, save                  :: ifirst
   double precision, save         :: memo(0:15,0:15)
-  !DEC$ ATTRIBUTES ALIGN : $IRP_ALIGN :: memo
+  !DIR$ ATTRIBUTES ALIGN : $IRP_ALIGN :: memo
   integer                        :: k,l
   if (ifirst == 0) then
     ifirst = 1
@@ -45,20 +45,6 @@ end
 END_PROVIDER
 
 
-integer function align_double(n)
-  implicit none
-  BEGIN_DOC
-  ! Compute 1st dimension such that it is aligned for vectorization.
-  END_DOC
-  integer                        :: n
-  include 'constants.include.F'
-  if (mod(n,SIMD_vector/4) /= 0) then
-    align_double= n + SIMD_vector/4 - mod(n,SIMD_vector/4)
-  else
-    align_double= n
-  endif
-end
-
 
 double precision function fact(n)
   implicit none
@@ -84,10 +70,8 @@ double precision function fact(n)
     memo(i) = memo(i-1)*dble(i)
   enddo
   memomax = min(n,100)
-  fact = memo(memomax)
-  do i=101,n
-    fact = fact*dble(i)
-  enddo
+  double precision :: logfact
+  fact = dexp(logfact(n))
 end function
 
 double precision function logfact(n)
@@ -158,18 +142,41 @@ double precision function dble_fact_even(n) result(fact2)
   ! n!!
   END_DOC
   integer                        :: n,k
-  double precision, save         :: memo(1:100)
-  integer, save                  :: memomax = 2
+  double precision, save         :: memo(0:100)
+  integer, save                  :: memomax = 0
   double precision               :: prod
 
   ASSERT (iand(n,1) /= 1)
 
-  prod=1.d0
-  do k=2,n,2
-   prod=prod*dfloat(k)
+!  prod=1.d0
+!  do k=2,n,2
+!   prod=prod*dfloat(k)
+!  enddo
+!  fact2=prod
+!  return
+!
+  if (n <= memomax) then
+    if (n < 2) then
+      fact2 = 1.d0
+    else
+      fact2 = memo(n)
+    endif
+    return
+  endif
+
+  integer                        :: i
+  memo(0)=1.d0
+  memo(1)=1.d0
+  do i=memomax+2,min(n,100),2
+    memo(i) = memo(i-2)* dble(i)
   enddo
-  fact2=prod
-  return
+  memomax = min(n,100)
+  fact2 = memo(memomax)
+  
+  if (n > 100) then
+    double precision :: dble_logfact
+    fact2 = dexp(dble_logfact(n))
+  endif
 
 end function
 
@@ -213,30 +220,14 @@ double precision function dble_logfact(n) result(logfact2)
   ! n!!
   END_DOC
   integer                        :: n
-  double precision, save         :: memo(1:100)
-  integer, save                  :: memomax = 1
-  
-  ASSERT (iand(n,1) /= 0)
-  if (n<=memomax) then
-    if (n<3) then
-      logfact2 = 0.d0
-    else
-      logfact2 = memo(n)
-    endif
-    return
-  endif
-  
-  integer                        :: i
-  memo(1) = 0.d0
-  do i=memomax+2,min(n,99),2
-    memo(i) = memo(i-2)+ dlog(dble(i))
+  integer :: k
+  double precision :: prod
+  prod=0.d0
+  do k=2,n,2
+   prod=prod+dlog(dfloat(k))
   enddo
-  memomax = min(n,99)
-  logfact2 = memo(memomax)
-  
-  do i=101,n,2
-    logfact2 += dlog(dble(i))
-  enddo
+  logfact2=prod
+  return
   
 end function
 
@@ -303,22 +294,10 @@ double precision function u_dot_v(u,v,sze)
   END_DOC
   integer, intent(in)            :: sze
   double precision, intent(in)   :: u(sze),v(sze)
+  double precision, external     :: ddot
   
-  integer                        :: i,t1, t2, t3, t4
-  
-  ASSERT (sze > 0)
-  t1 = 0
-  t2 = sze/4
-  t3 = t2+t2
-  t4 = t3+t2
-  u_dot_v = 0.d0
-  do i=1,t2
-    u_dot_v = u_dot_v + u(t1+i)*v(t1+i) + u(t2+i)*v(t2+i) +          &
-        u(t3+i)*v(t3+i) + u(t4+i)*v(t4+i)
-  enddo
-  do i=t4+t2+1,sze
-    u_dot_v = u_dot_v + u(i)*v(i)
-  enddo
+  !DIR$ FORCEINLINE
+  u_dot_v = ddot(sze,u,1,v,1)
   
 end
 
@@ -329,27 +308,10 @@ double precision function u_dot_u(u,sze)
   END_DOC
   integer, intent(in)            :: sze
   double precision, intent(in)   :: u(sze)
+  double precision, external     :: ddot
   
-  integer                        :: i
-  integer                        :: t1, t2, t3, t4
-  
-  ASSERT (sze > 0)
-  t1 = 0
-  t2 = sze/4
-  t3 = t2+t2
-  t4 = t3+t2
-  u_dot_u = 0.d0
-! do i=1,t2
-!   u_dot_u = u_dot_u + u(t1+i)*u(t1+i) + u(t2+i)*u(t2+i) +          &
-!       u(t3+i)*u(t3+i) + u(t4+i)*u(t4+i)
-! enddo
-! do i=t4+t2+1,sze
-!   u_dot_u = u_dot_u+u(i)*u(i)
-! enddo
-  
-  do i=1,sze
-    u_dot_u = u_dot_u + u(i)*u(i)
-  enddo
+  !DIR$ FORCEINLINE
+  u_dot_u = ddot(sze,u,1,u,1)
   
 end
 
@@ -357,23 +319,21 @@ subroutine normalize(u,sze)
   implicit none
   BEGIN_DOC
   ! Normalizes vector u
-  ! u is expected to be aligned in memory.
   END_DOC
   integer, intent(in)            :: sze
   double precision, intent(inout):: u(sze)
   double precision               :: d
-  double precision, external     :: u_dot_u
+  double precision, external     :: dnrm2
   integer                        :: i
   
   !DIR$ FORCEINLINE
-  d = u_dot_u(u,sze)
+  d = dnrm2(sze,u,1)
   if (d /= 0.d0) then
-    d = 1.d0/dsqrt( d )
+    d = 1.d0/d
   endif
   if (d /= 1.d0) then
-    do i=1,sze
-      u(i) = d*u(i)
-    enddo
+    !DIR$ FORCEINLINE
+    call dscal(sze,d,u,1)
   endif
 end
 
@@ -401,5 +361,21 @@ end
 
 
 
-
+subroutine lowercase(txt,n)
+  implicit none
+  BEGIN_DOC
+! Transform to lower case
+  END_DOC
+  character*(*), intent(inout)   :: txt
+  integer, intent(in)            :: n
+  character( * ), PARAMETER      :: LOWER_CASE = 'abcdefghijklmnopqrstuvwxyz'
+  character( * ), PARAMETER      :: UPPER_CASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  integer                        :: i, ic
+  do i=1,n
+    ic = index( UPPER_CASE, txt(i:i) )
+    if (ic /= 0) then
+      txt(i:i) = LOWER_CASE(ic:ic)
+    endif
+  enddo
+end
 

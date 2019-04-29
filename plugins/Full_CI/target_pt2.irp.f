@@ -26,6 +26,11 @@ program var_pt2_ratio_run
     soft_touch N_det psi_det psi_coef
     call diagonalize_CI
     ratio = (CI_energy(1) - HF_energy) / (CI_energy(1)+pt2(1) - HF_energy)
+    if (N_det > 20000) then
+      N_det = 20000
+      TOUCH N_det
+      exit
+    endif
   enddo
 
   threshold_selectors = 1.d0
@@ -68,9 +73,6 @@ program var_pt2_ratio_run
     print *,  'N_det     = ', N_det
     print *,  'E         = ', CI_energy(1)
     call ezfio_set_full_ci_energy(CI_energy)
-    if (abort_all) then
-      exit
-    endif
   enddo
   deallocate(pt2,norm_pert)
 end

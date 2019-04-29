@@ -1,7 +1,7 @@
-open Qptypes;;
-open Core.Std;;
+open Qptypes
+open Sexplib.Std
 
-type t = S|P|D|F|G|H|I|J|K|L with sexp
+type t = S|P|D|F|G|H|I|J|K|L [@@deriving sexp]
 
 let to_string = function
   | S -> "S"
@@ -53,7 +53,7 @@ let to_l = function
   | J -> Positive_int.of_int 7
   | K -> Positive_int.of_int 8
   | L -> Positive_int.of_int 9
-;;
+
 
 let of_l i = 
   let i = Positive_int.to_int i in
@@ -69,15 +69,15 @@ let of_l i =
   | 8 -> K
   | 9 -> L
   | x -> raise (Failure ("Symmetry should be S|P|D|F|G|H|I|J|K|L"))
-;;
+
 
 type st = t
-;;
+
 
 module Xyz = struct
   type t = { x: Positive_int.t ;
              y: Positive_int.t ;
-             z: Positive_int.t } with sexp
+             z: Positive_int.t } [@@deriving sexp]
   type state_type = Null | X | Y | Z
 
   (** Builds an XYZ triplet from a string.
@@ -85,8 +85,8 @@ module Xyz = struct
   let of_string s =
     let flush state accu number =
       let n = 
-        if (number = "") then 0
-        else (Int.of_string number) 
+        if (number = "") then 1
+        else (int_of_string number) 
       in
       match state with
       | X -> { x= Positive_int.(of_int ( (to_int accu.x) +n));
@@ -111,15 +111,14 @@ module Xyz = struct
     | 'Z'::rest | 'z'::rest -> 
         let new_accu = flush state accu number in 
         do_work Z new_accu "" rest
-    | c::rest -> do_work state accu (number^(String.of_char c)) rest
+    | c::rest -> do_work state accu (number^(String_ext.of_char c)) rest
     in
-    String.to_list_rev s 
-    |> List.rev 
+    String_ext.to_list s 
     |> do_work Null 
      { x=Positive_int.of_int 0 ; 
        y=Positive_int.of_int 0 ;
        z=Positive_int.of_int 0 } "" 
-  ;;
+
 
   (** Transforms an XYZ triplet to a string *)
   let to_string t = 
@@ -139,7 +138,7 @@ module Xyz = struct
     let result = (x^y^z) in
     if (result = "") then "s"
     else result
-  ;;
+
 
  (** Returns the l quantum number from a XYZ powers triplet *)
   let get_l t =
@@ -147,7 +146,7 @@ module Xyz = struct
    and y = Positive_int.to_int t.y
    and z = Positive_int.to_int t.z
    in Positive_int.of_int (x+y+z)
- ;;
+
 
  (** Returns a list of XYZ powers for a given symmetry *)
  let of_symmetry sym =
@@ -178,10 +177,11 @@ module Xyz = struct
    in
    create_x [] { x=(to_l sym) ; y=Positive_int.of_int 0 ;
      z=Positive_int.of_int 0 }
- ;;
+   |> List.rev
+
 
  (** Returns the symmetry corresponding to the XYZ triplet *)
  let to_symmetry sym = of_l (get_l sym)
- ;;
+
 end
 

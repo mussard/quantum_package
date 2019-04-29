@@ -1,6 +1,6 @@
 open Qptypes;;
 open Qputils;;
-open Core.Std;;
+open Core;;
 
 module Ao_basis : sig
   type t = 
@@ -12,10 +12,12 @@ module Ao_basis : sig
       ao_power        : Symmetry.Xyz.t array;
       ao_coef         : AO_coef.t array;
       ao_expo         : AO_expo.t array;
-    } with sexp
+      ao_cartesian    : bool;
+    } [@@deriving sexp]
   ;;
   val read : unit -> t option
   val to_string : t -> string
+  val to_basis  : t -> Basis.t
   val write  : t -> unit
   val to_md5 : t -> MD5.t
   val to_rst : t -> Rst_string.t
@@ -29,7 +31,8 @@ end = struct
       ao_power        : Symmetry.Xyz.t array;
       ao_coef         : AO_coef.t array;
       ao_expo         : AO_expo.t array;
-    } with sexp
+      ao_cartesian    : bool;
+    } [@@deriving sexp]
   ;;
 
   let get_default = Qpackage.get_ezfio_default "ao_basis";;
@@ -93,6 +96,15 @@ end = struct
     |> Array.map ~f:AO_expo.of_float
   ;;
 
+  let read_ao_cartesian () =
+    if not (Ezfio.has_ao_basis_ao_cartesian ()) then
+       get_default "ao_cartesian"
+       |> Bool.of_string
+       |> Ezfio.set_ao_basis_ao_cartesian
+    ;
+    Ezfio.get_ao_basis_ao_cartesian ()
+  ;;
+
   let to_long_basis b =
     let ao_num = AO_number.to_int b.ao_num in
     let gto_array = Array.init (AO_number.to_int b.ao_num)
@@ -100,8 +112,8 @@ end = struct
         let s = Symmetry.Xyz.to_symmetry b.ao_power.(i) in
         let ao_prim_num = AO_prim_number.to_int b.ao_prim_num.(i) in
         let prims = List.init ao_prim_num ~f:(fun j ->
-          let prim = { Primitive.sym  = s ;
-                       Primitive.expo = b.ao_expo.(ao_num*j+i)
+          let prim = { GaussianPrimitive.sym  = s ;
+                       GaussianPrimitive.expo = b.ao_expo.(ao_num*j+i)
                      }
           in
           let coef = b.ao_coef.(ao_num*j+i) in
@@ -154,6 +166,7 @@ end = struct
          ao_power        ;
          ao_coef         ;
          ao_expo         ;
+         ao_cartesian    ;
        } = b
      in
      write_md5 b ;
@@ -173,6 +186,7 @@ end = struct
             ao_power        = read_ao_power ();
             ao_coef         = read_ao_coef () ;
             ao_expo         = read_ao_expo () ;
+            ao_cartesian    = read_ao_cartesian () ;
           }
         in
         to_md5 result
@@ -204,7 +218,11 @@ Name of the AO basis ::
 
   ao_basis = %s
 
-Basis set ::
+Cartesian coordinates (6d,10f,...) ::
+
+  ao_cartesian = %s
+
+Basis set (read-only) ::
   
 %s
 
@@ -215,12 +233,14 @@ Basis set ::
 %s
 ======= ========= ===========
 
-" (AO_basis_name.to_string b.ao_basis)
+"   (AO_basis_name.to_string b.ao_basis)
+    (Bool.to_string b.ao_cartesian)
     (Basis.to_string short_basis 
-     |> String.split ~on:'\n'
-     |> List.map ~f:(fun x-> "  "^x)
-     |> String.concat ~sep:"\n"
+       |> String.split ~on:'\n'
+       |> List.map ~f:(fun x-> "  "^x)
+       |> String.concat ~sep:"\n"
     ) print_sym
+  
   |> Rst_string.of_string
   ;;
 
@@ -232,7 +252,7 @@ Basis set ::
     | [] -> failwith "Error in basis set"
     | line :: tail ->
       let line = String.strip line in
-      if line = "Basis set ::" then
+      if line = "Basis set (read-only) ::" then
         String.concat tail ~sep:"\n"
       else
         extract_basis tail
@@ -250,6 +270,7 @@ ao_nucl         = %s
 ao_power        = %s
 ao_coef         = %s
 ao_expo         = %s
+ao_cartesian    = %s
 md5             = %s
 "
     (AO_basis_name.to_string b.ao_basis)
@@ -265,6 +286,7 @@ md5             = %s
       |> String.concat ~sep:", ")
     (b.ao_expo  |> Array.to_list |> List.map ~f:AO_expo.to_string
       |> String.concat ~sep:", ")
+    (b.ao_cartesian |> Bool.to_string) 
     (to_md5 b |> MD5.to_string )
 
   ;;

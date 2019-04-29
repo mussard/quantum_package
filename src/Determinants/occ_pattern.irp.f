@@ -36,6 +36,7 @@ subroutine occ_pattern_to_dets_size(o,sze,n_alpha,Nint)
     amax -= popcnt( o(k,2) )
   enddo
   sze = int( min(binom_func(bmax, amax), 1.d8) )
+  sze = 2*sze*sze + 64
 
 end
 
@@ -51,8 +52,8 @@ subroutine occ_pattern_to_dets(o,d,sze,n_alpha,Nint)
   integer(bit_kind),intent(out)  :: d(Nint,2,sze)
   
   integer                        :: i, k, nt, na, nd, amax
-  integer                        :: list_todo(n_alpha)
-  integer                        :: list_a(n_alpha)
+  integer                        :: list_todo(2*n_alpha)
+  integer                        :: list_a(2*n_alpha)
 
   amax = n_alpha
   do k=1,Nint
@@ -68,35 +69,25 @@ subroutine occ_pattern_to_dets(o,d,sze,n_alpha,Nint)
 
   sze = nd
   
+  integer :: ne(2), l
+  l=0
   do i=1,nd
+    ne(1) = 0
+    ne(2) = 0
+    l=l+1
     ! Doubly occupied orbitals
     do k=1,Nint
-      d(k,1,i) = ior(d(k,1,i),o(k,2))
-      d(k,2,i) = ior(d(k,2,i),o(k,2))
+      d(k,1,l) = ior(d(k,1,i),o(k,2))
+      d(k,2,l) = ior(d(k,2,i),o(k,2))
+      ne(1) += popcnt(d(k,1,l))
+      ne(2) += popcnt(d(k,2,l))
     enddo
+    if ( (ne(1) /= elec_alpha_num).or.(ne(2) /= elec_beta_num) ) then
+      l = l-1
+    endif
   enddo
+  sze = l
 
-!  !TODO DEBUG
-!  integer :: j,s
-!  do i=1,nd
-!    do j=1,i-1
-!      na=0
-!      do k=1,Nint
-!        if((d(k,1,j) /= d(k,1,i)).or. &
-!           (d(k,2,j) /= d(k,2,i))) then
-!          s=1
-!          exit
-!        endif
-!      enddo
-!      if ( j== 0 ) then
-!        print *,  'det ',i,' and ',j,' equal:'
-!        call debug_det(d(1,1,j),Nint)
-!        call debug_det(d(1,1,i),Nint)
-!        stop
-!      endif
-!    enddo
-!  enddo
-!  !TODO DEBUG
 end
 
 recursive subroutine  rec_occ_pattern_to_dets(list_todo,nt,list_a,na,d,nd,sze,amax,Nint)
@@ -110,6 +101,11 @@ recursive subroutine  rec_occ_pattern_to_dets(list_todo,nt,list_a,na,d,nd,sze,am
 
   if (na == amax) then
     nd += 1
+    if (nd > sze) then
+      print *,  irp_here, ': nd  = ', nd
+      print *,  irp_here, ': sze = ', sze
+      stop 'bug in rec_occ_pattern_to_dets'
+    endif
     if (na > 0) then
       call list_to_bitstring( d(1,1,nd), list_a, na, Nint)
     endif
@@ -118,7 +114,8 @@ recursive subroutine  rec_occ_pattern_to_dets(list_todo,nt,list_a,na,d,nd,sze,am
     endif
   else
     integer :: i, j, k
-    integer :: list_todo_tmp(nt)
+    integer, allocatable :: list_todo_tmp(:)
+    allocate (list_todo_tmp(nt))
     do i=1,nt
       if (na > 0) then
         if (list_todo(i) < list_a(na)) then
@@ -135,6 +132,7 @@ recursive subroutine  rec_occ_pattern_to_dets(list_todo,nt,list_a,na,d,nd,sze,am
       enddo
       call rec_occ_pattern_to_dets(list_todo_tmp,nt-1,list_a,na+1,d,nd,sze,amax,Nint)
     enddo
+    deallocate(list_todo_tmp)
   endif
 
 end
@@ -144,8 +142,8 @@ end
  implicit none
  BEGIN_DOC
   ! array of the occ_pattern present in the wf
-  ! psi_occ_pattern(:,1,j) = jth occ_pattern of the wave function : represent all the single occupation
-  ! psi_occ_pattern(:,2,j) = jth occ_pattern of the wave function : represent all the double occupation
+  ! psi_occ_pattern(:,1,j) = jth occ_pattern of the wave function : represent all the single occupations
+  ! psi_occ_pattern(:,2,j) = jth occ_pattern of the wave function : represent all the double occupations
  END_DOC
  integer :: i,j,k
 
@@ -165,7 +163,7 @@ end
  logical,allocatable            :: duplicate(:)
 
 
- allocate ( iorder(N_det), duplicate(N_det), bit_tmp(N_det), tmp_array(N_int,2,psi_det_size) )
+ allocate ( iorder(N_det), duplicate(N_det), bit_tmp(N_det), tmp_array(N_int,2,N_det) )
 
  do i=1,N_det
    iorder(i) = i
@@ -182,12 +180,7 @@ end
   duplicate(i) = .False.
  enddo
 
- i=1
- integer (bit_kind) :: occ_pattern_tmp
- do i=1,N_det
-  duplicate(i) = .False.
- enddo
-
+ ! Find duplicates
  do i=1,N_det-1
   if (duplicate(i)) then
     cycle
@@ -196,6 +189,9 @@ end
   do while (bit_tmp(j)==bit_tmp(i))
     if (duplicate(j)) then
       j+=1
+      if (j>N_det) then
+        exit
+      endif
       cycle
     endif
     duplicate(j) = .True.
@@ -213,6 +209,7 @@ end
   enddo
  enddo
 
+ ! Copy filtered result
  N_occ_pattern=0
  do i=1,N_det
   if (duplicate(i)) then
@@ -225,27 +222,30 @@ end
   enddo
  enddo
 
- deallocate(iorder,duplicate,bit_tmp,tmp_array)
-! !TODO DEBUG
-! integer :: s
-! do i=1,N_occ_pattern
+!- Check
+!  do i=1,N_occ_pattern
 !   do j=i+1,N_occ_pattern
-!    s = 0
-!    do k=1,N_int
-!      if((psi_occ_pattern(k,1,j) /= psi_occ_pattern(k,1,i)).or. &
-!         (psi_occ_pattern(k,2,j) /= psi_occ_pattern(k,2,i))) then
-!         s=1
+!     duplicate(1) = .True.
+!     do k=1,N_int
+!       if (psi_occ_pattern(k,1,i) /= psi_occ_pattern(k,1,j)) then
+!         duplicate(1) = .False.
 !         exit
-!      endif
-!    enddo
-!    if ( s == 0 ) then
-!      print *,  'Error : occ ', j, 'already in wf'
-!      call debug_det(psi_occ_pattern(1,1,j),N_int)
-!      stop
-!    endif
+!       endif
+!       if (psi_occ_pattern(k,2,i) /= psi_occ_pattern(k,2,j)) then
+!         duplicate(1) = .False.
+!         exit
+!       endif
+!     enddo
+!     if (duplicate(1)) then
+!       call debug_det(psi_occ_pattern(1,1,i),N_int)
+!       call debug_det(psi_occ_pattern(1,1,j),N_int)
+!       stop 'DUPLICATE'
+!     endif
 !   enddo
-! enddo
-! !TODO DEBUG
+!  enddo
+!-
+ deallocate(iorder,duplicate,bit_tmp,tmp_array)
+
 END_PROVIDER 
 
 subroutine make_s2_eigenfunction
@@ -253,41 +253,28 @@ subroutine make_s2_eigenfunction
   integer                        :: i,j,k
   integer                        :: smax, s
   integer(bit_kind), allocatable :: d(:,:,:), det_buffer(:,:,:)
-  integer                        :: N_det_new
+  integer                        :: N_det_new, ithread, omp_get_thread_num
   integer, parameter             :: bufsze = 1000
   logical, external              :: is_in_wavefunction
-  return
 
-!  !TODO DEBUG
-!  do i=1,N_det
-!   do j=i+1,N_det
-!    s = 0
-!    do k=1,N_int
-!      if((psi_det(k,1,j) /= psi_det(k,1,i)).or. &
-!         (psi_det(k,2,j) /= psi_det(k,2,i))) then
-!         s=1
-!         exit
-!      endif
-!    enddo
-!    if ( s == 0 ) then
-!      print *,  'Error0: det ', j, 'already in wf'
-!      call debug_det(psi_det(1,1,j),N_int)
-!      stop
-!    endif
-!   enddo
-!  enddo
-!  !TODO DEBUG
+  call write_int(6,N_occ_pattern,'Number of occupation patterns')
 
-  allocate (d(N_int,2,1), det_buffer(N_int,2,bufsze) )
-  smax = 1
+  !$OMP PARALLEL DEFAULT(NONE) &
+  !$OMP  SHARED(N_occ_pattern, psi_occ_pattern, elec_alpha_num,N_int) &
+  !$OMP  PRIVATE(s,ithread, d, det_buffer, smax, N_det_new,i,j,k)
   N_det_new = 0
-
+  call occ_pattern_to_dets_size(psi_occ_pattern(1,1,1),s,elec_alpha_num,N_int)
+  allocate (d(N_int,2,s+64), det_buffer(N_int,2,bufsze) )
+  smax = s
+  ithread=0
+  !$ ithread = omp_get_thread_num()
+  !$OMP DO 
   do i=1,N_occ_pattern
     call occ_pattern_to_dets_size(psi_occ_pattern(1,1,i),s,elec_alpha_num,N_int)
     s += 1
     if (s > smax) then
       deallocate(d)
-      allocate ( d(N_int,2,s) )
+      allocate ( d(N_int,2,s+64) )
       smax = s
     endif
     call occ_pattern_to_dets(psi_occ_pattern(1,1,i),d,s,elec_alpha_num,N_int)
@@ -299,42 +286,27 @@ subroutine make_s2_eigenfunction
           det_buffer(k,2,N_det_new) = d(k,2,j)
         enddo
         if (N_det_new == bufsze) then
-          call fill_H_apply_buffer_no_selection(bufsze,det_buffer,N_int,0)
+          call fill_H_apply_buffer_no_selection(bufsze,det_buffer,N_int,ithread)
           N_det_new = 0
         endif
       endif
     enddo
   enddo
+  !$OMP END DO NOWAIT
 
   if (N_det_new > 0) then
-    call fill_H_apply_buffer_no_selection(N_det_new,det_buffer,N_int,0)
-    call copy_H_apply_buffer_to_wf
-    SOFT_TOUCH N_det psi_coef psi_det
+    call fill_H_apply_buffer_no_selection(N_det_new,det_buffer,N_int,ithread)
   endif
-
+  !$OMP BARRIER
   deallocate(d,det_buffer)
+  !$OMP END PARALLEL
 
-
-!  !TODO DEBUG
-!  do i=1,N_det
-!   do j=i+1,N_det
-!    s = 0
-!    do k=1,N_int
-!      if((psi_det(k,1,j) /= psi_det(k,1,i)).or. &
-!         (psi_det(k,2,j) /= psi_det(k,2,i))) then
-!         s=1
-!         exit
-!      endif
-!    enddo
-!    if ( s == 0 ) then
-!      print *,  'Error : det ', j, 'already in wf at ', i
-!      call debug_det(psi_det(1,1,j),N_int)
-!      stop
-!    endif
-!   enddo
-!  enddo
-!  !TODO DEBUG
-   call write_int(output_determinants,N_det_new, 'Added deteminants for S^2')
+  call copy_H_apply_buffer_to_wf
+  SOFT_TOUCH N_det psi_coef psi_det
+  print *,  'Added determinants for S^2'
+  call write_time(6)
 
 end
+
+
 

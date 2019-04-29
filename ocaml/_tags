@@ -1,2 +1,3 @@
-true: package(core,sexplib.syntax,cryptokit)
+true: package(core,cryptokit,zmq,str,ppx_sexp_conv,ppx_deriving)
 true: thread
+false: profile

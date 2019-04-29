@@ -1,4 +1,110 @@
-subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_generator, iproc_in $parameters )
+
+subroutine $subroutine_diexc(key_in, key_prev, hole_1,particl_1, hole_2, particl_2, fock_diag_tmp, i_generator, iproc_in $parameters )
+  implicit none
+  integer(bit_kind), intent(in)         :: key_in(N_int, 2), hole_1(N_int, 2), hole_2(N_int, 2)
+  integer(bit_kind), intent(in)         :: particl_1(N_int, 2), particl_2(N_int, 2)
+  integer(bit_kind)                     :: p1_mask(N_int, 2), p2_mask(N_int, 2), tmp
+  integer,intent(in)                    :: i_generator,iproc_in
+  integer                               :: status(N_int*bit_kind_size, 2)
+  integer                               :: highest, p1,p2,sp,ni,i,mi,nt,ns,k
+  double precision, intent(in)          :: fock_diag_tmp(2,mo_tot_num+1)
+  integer(bit_kind), intent(in)         :: key_prev(N_int, 2, *)
+  PROVIDE N_int
+  PROVIDE N_det
+  
+  $declarations
+  
+  highest = 0
+  do k=1,N_int*bit_kind_size
+    status(k,1) = 0
+    status(k,2) = 0
+  enddo
+  do sp=1,2
+    do ni=1,N_int
+      do i=1,bit_kind_size
+        if(iand(1_bit_kind,ishft(key_in(ni, sp), -(i-1))) == 0) then
+          cycle
+        end if
+        mi = (ni-1)*bit_kind_size+i
+        status(mi, sp) = int(iand(1_bit_kind,ishft(hole_1(ni, sp), -(i-1))),4)
+        status(mi, sp) = status(mi, sp) + 2*int(iand(1_bit_kind,ishft(hole_2(ni, sp), -(i-1))),4)
+        if(status(mi, sp) /= 0 .and. mi > highest) then
+          highest = mi
+        end if
+      end do
+    end do
+  end do
+  
+  do sp=1,2
+    do p1=1,highest
+      if(status(p1, sp) == 0) then
+        cycle
+      end if
+      do p2=1,highest
+        if(status(p2, sp) == 0) then
+          cycle
+        end if
+        if((status(p1, sp) == 1 .and. status(p2, sp) > 1) .or. &
+            (status(p1, sp) == 2 .and. status(p2, sp) == 3) .or. &
+            (status(p1, sp) == 3 .and. status(p2, sp) == 3 .and. p2 > p1)) then
+          call $subroutine_diexcP(key_in, sp, p1, particl_1, sp, p2, particl_2, fock_diag_tmp, i_generator, iproc_in $parameters )
+        end if
+      end do
+    end do
+  end do
+  do p1=1,highest
+    if(status(p1, 1) == 0) then
+      cycle
+    end if
+    do p2=1,highest
+      if(status(p2, 2) == 0) then
+        cycle
+      end if
+      if((status(p1, 1) == 3) .or. &
+          (status(p1, 1) == 1 .and. status(p2, 2) >= 2) .or. &
+          (status(p1, 1) == 2 .and. status(p2, 2) /= 2)) then
+          
+          call $subroutine_diexcP(key_in, 1, p1, particl_1, 2, p2, particl_2, fock_diag_tmp, i_generator, iproc_in $parameters )
+      end if
+    end do
+  end do
+end subroutine
+
+
+subroutine $subroutine_diexcP(key_in, fs1, fh1, particl_1, fs2, fh2, particl_2, fock_diag_tmp, i_generator, iproc_in $parameters )
+  implicit none
+  integer(bit_kind), intent(in)         :: key_in(N_int, 2), particl_1(N_int, 2), particl_2(N_int, 2)
+  double precision, intent(in)          :: fock_diag_tmp(2,mo_tot_num+1)
+  integer(bit_kind)                     :: p1_mask(N_int, 2), p2_mask(N_int, 2), key_mask(N_int, 2)
+  integer,intent(in)                    :: fs1,fs2,i_generator,iproc_in, fh1,fh2
+  integer(bit_kind)                     :: miniList(N_int, 2, N_det)
+  integer                               :: n_minilist, n_alpha, n_beta, deg(2), i, ni, k
+  $declarations
+  integer(bit_kind), parameter :: one = 1_bit_kind
+  
+  do k=1,N_int
+    p1_mask(k,1) = 0_bit_kind
+    p1_mask(k,2) = 0_bit_kind
+    p2_mask(k,1) = 0_bit_kind
+    p2_mask(k,2) = 0_bit_kind
+  enddo
+  p1_mask(ishft(fh1-1,-bit_kind_shift) + 1, fs1) = ishft(one,iand(fh1-1,bit_kind_size-1))
+  p2_mask(ishft(fh2-1,-bit_kind_shift) + 1, fs2) = ishft(one,iand(fh2-1,bit_kind_size-1))
+  
+  do k=1,N_int
+    key_mask(k,1) = key_in(k,1)
+    key_mask(k,2) = key_in(k,2)
+  enddo
+
+  key_mask(ishft(fh1-1,-bit_kind_shift) + 1, fs1) -= ishft(one,iand(fh1-1,bit_kind_size-1))
+  key_mask(ishft(fh2-1,-bit_kind_shift) + 1, fs2) -= ishft(one,iand(fh2-1,bit_kind_size-1))
+  
+      
+  call $subroutine_diexcOrg(key_in, key_mask, p1_mask, particl_1, p2_mask, particl_2, fock_diag_tmp, i_generator, iproc_in $parameters )
+end subroutine
+
+
+subroutine $subroutine_diexcOrg(key_in,key_mask,hole_1,particl_1,hole_2, particl_2, fock_diag_tmp, i_generator, iproc_in $parameters )
   use omp_lib
   use bitmasks
   implicit none
@@ -10,11 +116,12 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
   integer,parameter              :: size_max = $size_max
   $declarations
   integer          ,intent(in)   :: i_generator
-  integer(bit_kind),intent(in)   :: key_in(N_int,2)
+  integer(bit_kind),intent(in)   :: key_in(N_int,2), key_mask(N_int, 2)
   integer(bit_kind),allocatable  :: keys_out(:,:,:)
   integer(bit_kind), intent(in)  :: hole_1(N_int,2), particl_1(N_int,2)
   integer(bit_kind), intent(in)  :: hole_2(N_int,2), particl_2(N_int,2)
   integer, intent(in)            :: iproc_in
+  double precision, intent(in)   :: fock_diag_tmp(2,mo_tot_num+1)
   integer(bit_kind), allocatable :: hole_save(:,:)
   integer(bit_kind), allocatable :: key(:,:),hole(:,:), particle(:,:)
   integer(bit_kind), allocatable :: hole_tmp(:,:), particle_tmp(:,:)
@@ -33,20 +140,22 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
   double precision               :: diag_H_mat_elem
   integer                        :: iproc
   integer                        :: jtest_vvvv
-  integer(omp_lock_kind), save   :: lck, ifirst=0
-  if (ifirst == 0) then
-!$    call omp_init_lock(lck)
-    ifirst=1
-  endif
   
   logical :: check_double_excitation 
+  logical :: is_a_1h1p
+  logical :: is_a_1h2p
+  logical :: is_a_1h
+  logical :: is_a_1p
+  logical :: is_a_2p
+  logical :: is_a_2h1p
+  logical :: is_a_2h
   logical :: b_cycle
   check_double_excitation = .True.
   iproc = iproc_in
 
 
   $initialization
-  
+   
   $omp_parallel
 !$ iproc = omp_get_thread_num()
   allocate (keys_out(N_int,2,size_max), hole_save(N_int,2),          &
@@ -54,6 +163,7 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
       particle_tmp(N_int,2), occ_particle(N_int*bit_kind_size,2),    &
       occ_hole(N_int*bit_kind_size,2), occ_particle_tmp(N_int*bit_kind_size,2),&
       occ_hole_tmp(N_int*bit_kind_size,2),key_union_hole_part(N_int))
+
   $init_thread
   
   
@@ -65,10 +175,8 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
     particle(j,1) = iand(xor(particl_1(j,1),key_in(j,1)),particl_1(j,1))
     particle(j,2) = iand(xor(particl_1(j,2),key_in(j,2)),particl_1(j,2))
   enddo
-  call bitstring_to_list(particle(1,1),occ_particle(1,1),N_elec_in_key_part_1(1),N_int)
-  call bitstring_to_list(particle(1,2),occ_particle(1,2),N_elec_in_key_part_1(2),N_int)
-  call bitstring_to_list(hole(1,1),occ_hole(1,1),N_elec_in_key_hole_1(1),N_int)
-  call bitstring_to_list(hole(1,2),occ_hole(1,2),N_elec_in_key_hole_1(2),N_int)
+  call bitstring_to_list_ab(particle,occ_particle,N_elec_in_key_part_1,N_int)
+  call bitstring_to_list_ab(hole,occ_hole,N_elec_in_key_hole_1,N_int)
   allocate (ia_ja_pairs(2,0:(elec_alpha_num)*mo_tot_num,2),          &
             ib_jb_pairs(2,0:(elec_alpha_num)*mo_tot_num))
   
@@ -101,14 +209,8 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
   accu = 0.d0
   do ispin=1,2
     other_spin = iand(ispin,1)+1
-    if (abort_here) then
-      exit
-    endif
     $omp_do
     do ii=1,ia_ja_pairs(1,0,ispin)
-      if (abort_here) then
-        cycle
-      endif
       i_a = ia_ja_pairs(1,ii,ispin)
       ASSERT (i_a > 0)
       ASSERT (i_a <= mo_tot_num)
@@ -131,16 +233,15 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
         particle_tmp(j,2) = iand(xor(particl_2(j,2),hole(j,2)),particl_2(j,2))
       enddo
       
-      call bitstring_to_list(particle_tmp(1,1),occ_particle_tmp(1,1),N_elec_in_key_part_2(1),N_int)
-      call bitstring_to_list(particle_tmp(1,2),occ_particle_tmp(1,2),N_elec_in_key_part_2(2),N_int)
-      call bitstring_to_list(hole_tmp    (1,1),occ_hole_tmp    (1,1),N_elec_in_key_hole_2(1),N_int)
-      call bitstring_to_list(hole_tmp    (1,2),occ_hole_tmp    (1,2),N_elec_in_key_hole_2(2),N_int)
+      call bitstring_to_list_ab(particle_tmp,occ_particle_tmp,N_elec_in_key_part_2,N_int)
+      call bitstring_to_list_ab(hole_tmp,occ_hole_tmp,N_elec_in_key_hole_2,N_int)
       
       !   hole = a^(+)_j_a(ispin) a_i_a(ispin)|key_in> : mono exc :: orb(i_a,ispin) --> orb(j_a,ispin)
       hole_save = hole
 
       ! Build array of the non-zero integrals of second excitation
       $filter_integrals
+
       if (ispin == 1) then
         integer                        :: jjj
         
@@ -149,7 +250,7 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
           i_b = occ_hole_tmp(kk,other_spin)
           ASSERT (i_b > 0)
           ASSERT (i_b <= mo_tot_num)
-          do jjj=1,N_elec_in_key_part_2(other_spin)     ! particule
+          do jjj=1,N_elec_in_key_part_2(other_spin)     ! particle
             j_b = occ_particle_tmp(jjj,other_spin)
             ASSERT (j_b > 0)
             ASSERT (j_b <= mo_tot_num)
@@ -174,7 +275,15 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
           k = ishft(j_b-1,-bit_kind_shift)+1
           l = j_b-ishft(k-1,bit_kind_shift)-1
           key(k,other_spin) = ibset(key(k,other_spin),l)
-          $filter2h2p
+          $filter2h2p_double
+          $filter_only_1h1p_double
+          $filter_only_1h2p_double
+          $filter_only_2h2p_double
+          $only_2p_double
+          $only_2h_double
+          $only_1h_double
+          $only_1p_double
+          $only_2h1p_double
           key_idx += 1
           do k=1,N_int
             keys_out(k,1,key_idx) = key(k,1)
@@ -184,9 +293,6 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
           if (key_idx == size_max) then
             $keys_work
             key_idx = 0
-          endif
-          if (abort_here) then
-            exit
           endif
         enddo
       endif
@@ -224,7 +330,15 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
         k = ishft(j_b-1,-bit_kind_shift)+1
         l = j_b-ishft(k-1,bit_kind_shift)-1
         key(k,ispin) = ibset(key(k,ispin),l)
-        $filter2h2p
+        $filter2h2p_double
+        $filter_only_1h1p_double
+        $filter_only_1h2p_double
+        $filter_only_2h2p_double
+        $only_2p_double
+        $only_2h_double
+        $only_1h_double
+        $only_1p_double
+        $only_2h1p_double
         key_idx += 1
         do k=1,N_int
           keys_out(k,1,key_idx) = key(k,1)
@@ -235,9 +349,6 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
           $keys_work
           key_idx = 0
         endif
-        if (abort_here) then
-          exit
-        endif
       enddo ! kk
 
     enddo  ! ii
@@ -245,17 +356,17 @@ subroutine $subroutine_diexc(key_in, hole_1,particl_1, hole_2, particl_2, i_gene
   enddo   ! ispin
   $keys_work
   $deinit_thread
-  deallocate (ia_ja_pairs, ib_jb_pairs, &
-      keys_out, hole_save,          &
-      key,hole, particle, hole_tmp,&
-      particle_tmp, occ_particle,    &
-      occ_hole, occ_particle_tmp,&
+  deallocate (ia_ja_pairs, ib_jb_pairs,                              &
+      keys_out, hole_save,                                           &
+      key,hole, particle, hole_tmp,                                  &
+      particle_tmp, occ_particle,                                    &
+      occ_hole, occ_particle_tmp,                                    &
       occ_hole_tmp,array_pairs,key_union_hole_part)
   $omp_end_parallel
   $finalization
 end
 
-subroutine $subroutine_monoexc(key_in, hole_1,particl_1,i_generator,iproc_in $parameters )
+subroutine $subroutine_monoexc(key_in, hole_1,particl_1,fock_diag_tmp,i_generator,iproc_in $parameters )
   use omp_lib
   use bitmasks
   implicit none
@@ -270,6 +381,7 @@ subroutine $subroutine_monoexc(key_in, hole_1,particl_1,i_generator,iproc_in $pa
   integer(bit_kind),intent(in)   :: key_in(N_int,2)
   integer(bit_kind),intent(in)   :: hole_1(N_int,2), particl_1(N_int,2)
   integer, intent(in)            :: iproc_in
+  double precision, intent(in)   :: fock_diag_tmp(2,mo_tot_num+1)
   integer(bit_kind),allocatable  :: keys_out(:,:,:)
   integer(bit_kind),allocatable  :: hole_save(:,:)
   integer(bit_kind),allocatable  :: key(:,:),hole(:,:), particle(:,:)
@@ -288,21 +400,30 @@ subroutine $subroutine_monoexc(key_in, hole_1,particl_1,i_generator,iproc_in $pa
   integer, allocatable           :: ia_ja_pairs(:,:,:)
   logical, allocatable           :: array_pairs(:,:)
   double precision               :: diag_H_mat_elem
-  integer(omp_lock_kind), save   :: lck, ifirst=0
   integer                        :: iproc
-
+  
+  integer(bit_kind)              :: key_mask(N_int, 2)
+  
   logical :: check_double_excitation 
+  logical :: is_a_2h1p
+  logical :: is_a_2h
+  logical :: is_a_1h1p
+  logical :: is_a_1h2p
+  logical :: is_a_1h
+  logical :: is_a_1p
+  logical :: is_a_2p
+  
+  do k=1,N_int
+    key_mask(k,1) = 0_bit_kind
+    key_mask(k,2) = 0_bit_kind
+  enddo
+  
   iproc = iproc_in
 
   check_double_excitation = .True.
   $check_double_excitation
-
-
-  if (ifirst == 0) then
-    ifirst=1
-!$    call omp_init_lock(lck)
-  endif
   
+
   $initialization
   
   $omp_parallel
@@ -321,10 +442,8 @@ subroutine $subroutine_monoexc(key_in, hole_1,particl_1,i_generator,iproc_in $pa
     particle(j,2) = iand(xor(particl_1(j,2),key_in(j,2)),particl_1(j,2))
   enddo
   
-  call bitstring_to_list(particle(1,1),occ_particle(1,1),N_elec_in_key_part_1(1),N_int)
-  call bitstring_to_list(particle(1,2),occ_particle(1,2),N_elec_in_key_part_1(2),N_int)
-  call bitstring_to_list(hole    (1,1),occ_hole    (1,1),N_elec_in_key_hole_1(1),N_int)
-  call bitstring_to_list(hole    (1,2),occ_hole    (1,2),N_elec_in_key_hole_1(2),N_int)
+  call bitstring_to_list_ab(particle,occ_particle,N_elec_in_key_part_1,N_int)
+  call bitstring_to_list_ab(hole,occ_hole,N_elec_in_key_hole_1,N_int)
   allocate (ia_ja_pairs(2,0:(elec_alpha_num)*mo_tot_num,2))
   
   do ispin=1,2
@@ -362,7 +481,18 @@ subroutine $subroutine_monoexc(key_in, hole_1,particl_1,i_generator,iproc_in $pa
       l_a = j_a-ishft(k_a-1,bit_kind_shift)-1
   $filterparticle
       hole(k_a,ispin) = ibset(hole(k_a,ispin),l_a)
-      $filter2h2p
+      $only_2p_single
+      $only_2h_single
+      $only_1h_single
+      $only_1p_single
+      $only_2h1p_single
+      $filter1h
+      $filter1p
+      $filter2p
+      $filter2h2p_single
+      $filter_only_1h1p_single
+      $filter_only_1h2p_single
+      $filter_only_2h2p_single
       key_idx += 1
       do k=1,N_int
         keys_out(k,1,key_idx) = hole(k,1)
@@ -385,164 +515,6 @@ subroutine $subroutine_monoexc(key_in, hole_1,particl_1,i_generator,iproc_in $pa
       occ_hole_tmp,key_union_hole_part)
   $omp_end_parallel
   $finalization
-  
-end
-
-
-subroutine $subroutine($params_main)
-  implicit none
-  use omp_lib
-  use bitmasks
-  BEGIN_DOC
-  ! Calls H_apply on the HF determinant and selects all connected single and double
-  ! excitations (of the same symmetry). Auto-generated by the ``generate_h_apply`` script.
-  END_DOC
-  
-  $decls_main
-  
-  integer                        :: i_generator, nmax
-  double precision               :: wall_0, wall_1
-  integer(omp_lock_kind)         :: lck
-  integer(bit_kind), allocatable :: mask(:,:,:)
-  integer                        :: ispin, k
-  integer                        :: iproc
-
-  $initialization
-  PROVIDE H_apply_buffer_allocated mo_bielec_integrals_in_map psi_det_generators psi_coef_generators
-
-  
-  nmax = mod( N_det_generators,nproc )
- 
-
-  !$ call omp_init_lock(lck)
-  call start_progress(N_det_generators,'Selection (norm)',0.d0)
-
-  call wall_time(wall_0)
-
-  iproc = 0
-  allocate( mask(N_int,2,6) )
-  do i_generator=1,nmax
-
-    progress_bar(1) = i_generator
-
-    if (abort_here) then
-      exit
-    endif
-    $skip
-
-    ! Create bit masks for holes and particles
-    do ispin=1,2
-      do k=1,N_int
-        mask(k,ispin,s_hole) =                                      &
-            iand(generators_bitmask(k,ispin,s_hole,i_bitmask_gen),  &
-            psi_det_generators(k,ispin,i_generator) )
-        mask(k,ispin,s_part) =                                      &
-            iand(generators_bitmask(k,ispin,s_part,i_bitmask_gen),  &
-            not(psi_det_generators(k,ispin,i_generator)) )
-        mask(k,ispin,d_hole1) =                                      &
-            iand(generators_bitmask(k,ispin,d_hole1,i_bitmask_gen),  &
-            psi_det_generators(k,ispin,i_generator) )
-        mask(k,ispin,d_part1) =                                      &
-            iand(generators_bitmask(k,ispin,d_part1,i_bitmask_gen),  &
-            not(psi_det_generators(k,ispin,i_generator)) )
-        mask(k,ispin,d_hole2) =                                      &
-            iand(generators_bitmask(k,ispin,d_hole2,i_bitmask_gen),  &
-            psi_det_generators(k,ispin,i_generator) )
-        mask(k,ispin,d_part2) =                                      &
-            iand(generators_bitmask(k,ispin,d_part2,i_bitmask_gen),  &
-            not(psi_det_generators(k,ispin,i_generator)) )
-      enddo
-    enddo
-    if($do_double_excitations)then
-     call $subroutine_diexc(psi_det_generators(1,1,i_generator),      &
-         mask(1,1,d_hole1), mask(1,1,d_part1),                        &
-         mask(1,1,d_hole2), mask(1,1,d_part2),                        &
-         i_generator, iproc $params_post)
-    endif
-    if($do_mono_excitations)then
-     call $subroutine_monoexc(psi_det_generators(1,1,i_generator),    &
-         mask(1,1,s_hole ), mask(1,1,s_part ),                        &
-         i_generator, iproc $params_post)
-    endif
-    call wall_time(wall_1)
-    $printout_always
-    if (wall_1 - wall_0 > 2.d0) then
-        $printout_now
-        wall_0 = wall_1
-    endif
-  enddo
-
-  deallocate( mask )
-
-  !$OMP PARALLEL DEFAULT(SHARED) &
-  !$OMP PRIVATE(i_generator,wall_1,wall_0,ispin,k,mask,iproc) 
-  call wall_time(wall_0)
-  !$ iproc = omp_get_thread_num()
-  allocate( mask(N_int,2,6) )
-  !$OMP DO SCHEDULE(dynamic,1)
-  do i_generator=nmax+1,N_det_generators
-    if (iproc == 0) then
-      progress_bar(1) = i_generator
-    endif
-    if (abort_here) then
-      cycle
-    endif
-    $skip
-
-    ! Create bit masks for holes and particles
-    do ispin=1,2
-      do k=1,N_int
-        mask(k,ispin,s_hole) =                                      &
-            iand(generators_bitmask(k,ispin,s_hole,i_bitmask_gen),  &
-            psi_det_generators(k,ispin,i_generator) )
-        mask(k,ispin,s_part) =                                      &
-            iand(generators_bitmask(k,ispin,s_part,i_bitmask_gen),  &
-            not(psi_det_generators(k,ispin,i_generator)) )
-        mask(k,ispin,d_hole1) =                                      &
-            iand(generators_bitmask(k,ispin,d_hole1,i_bitmask_gen),  &
-            psi_det_generators(k,ispin,i_generator) )
-        mask(k,ispin,d_part1) =                                      &
-            iand(generators_bitmask(k,ispin,d_part1,i_bitmask_gen),  &
-            not(psi_det_generators(k,ispin,i_generator)) )
-        mask(k,ispin,d_hole2) =                                      &
-            iand(generators_bitmask(k,ispin,d_hole2,i_bitmask_gen),  &
-            psi_det_generators(k,ispin,i_generator) )
-        mask(k,ispin,d_part2) =                                      &
-            iand(generators_bitmask(k,ispin,d_part2,i_bitmask_gen),  &
-            not (psi_det_generators(k,ispin,i_generator)) )
-      enddo
-    enddo
-
-    if($do_double_excitations)then
-      call $subroutine_diexc(psi_det_generators(1,1,i_generator),    &
-        mask(1,1,d_hole1), mask(1,1,d_part1),                        &
-        mask(1,1,d_hole2), mask(1,1,d_part2),                        &
-        i_generator, iproc $params_post)
-    endif
-    if($do_mono_excitations)then
-      call $subroutine_monoexc(psi_det_generators(1,1,i_generator),  &
-        mask(1,1,s_hole ), mask(1,1,s_part ),                        &
-        i_generator, iproc $params_post)
-    endif
-    !$ call omp_set_lock(lck)
-    call wall_time(wall_1)
-    $printout_always
-    if (wall_1 - wall_0 > 2.d0) then
-        $printout_now
-        wall_0 = wall_1
-    endif
-    !$ call omp_unset_lock(lck)
-  enddo
-  !$OMP END DO 
-  deallocate( mask )
-  !$OMP END PARALLEL
-  !$ call omp_destroy_lock(lck)
-
-  abort_here = abort_all
-  call stop_progress
-  
-  $copy_buffer
-  $generate_psi_guess
   
 end
 

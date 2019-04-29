@@ -40,7 +40,7 @@ def is_plugin(path_module_rel):
 
 
 def is_exe(fpath):
-    return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+    return os.path.isfile(fpath) and os.access(fpath, os.X_OK) and not fpath.endswith(".py")
 
 
 def get_dict_child(l_root_abs=None):
@@ -88,7 +88,7 @@ def get_l_module_descendant(d_child, l_module):
             except KeyError:
                 print >> sys.stderr, "Error: "
                 print >> sys.stderr, "`{0}` is not a submodule".format(module)
-                print >> sys.stderr, "Check the typo (orthograph, case, '/', etc.) "
+                print >> sys.stderr, "Check the typo (spelling, case, '/', etc.) "
                 sys.exit(1)
 
     return list(set(l))
@@ -180,6 +180,11 @@ class ModuleHandler():
     def create_png(self, l_module):
         """Create the png of the dependency tree for a l_module"""
 
+        # Don't update if we are not in the main repository
+        from is_master_repository import is_master_repository
+        if not is_master_repository:
+            return
+
         basename = "tree_dependency"
         path = '{0}.png'.format(basename)
 
@@ -248,6 +253,9 @@ if __name__ == '__main__':
             m.create_png(l_module)
         except RuntimeError:
             pass
+        except SyntaxError:
+            print "Warning: The graphviz API dropped support for python 2.6."
+            pass
 
     if arguments["clean"] or arguments["create_git_ignore"]:
 
@@ -289,6 +297,13 @@ if __name__ == '__main__':
                         pass
 
             if arguments["create_git_ignore"]:
+
+                # Don't update if we are not in the main repository
+                from is_master_repository import is_master_repository
+                if not is_master_repository:
+                    print >>  sys.stderr, 'Not in the master repo'
+                    sys.exit(0)
+
                 path = os.path.join(module_abs, ".gitignore")
 
                 with open(path, "w+") as f:

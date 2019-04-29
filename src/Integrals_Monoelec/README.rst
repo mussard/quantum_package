@@ -47,43 +47,43 @@ Documentation
   {\tt ao_deriv2_x} = \langle \chi_i(x,y,z) \frac{\partial^2}{\partial x^2} |\chi_j (x,y,z) \rangle
 
 
-`ao_deriv_1_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L148>`_
+`ao_deriv_1_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L142>`_
   array of the integrals of AO_i * d/dx  AO_j
   array of the integrals of AO_i * d/dy  AO_j
   array of the integrals of AO_i * d/dz  AO_j
 
 
-`ao_deriv_1_y <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L149>`_
+`ao_deriv_1_y <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L143>`_
   array of the integrals of AO_i * d/dx  AO_j
   array of the integrals of AO_i * d/dy  AO_j
   array of the integrals of AO_i * d/dz  AO_j
 
 
-`ao_deriv_1_z <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L150>`_
+`ao_deriv_1_z <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L144>`_
   array of the integrals of AO_i * d/dx  AO_j
   array of the integrals of AO_i * d/dy  AO_j
   array of the integrals of AO_i * d/dz  AO_j
 
 
-`ao_dipole_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L75>`_
+`ao_dipole_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L72>`_
   array of the integrals of AO_i * x AO_j
   array of the integrals of AO_i * y AO_j
   array of the integrals of AO_i * z AO_j
 
 
-`ao_dipole_y <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L76>`_
+`ao_dipole_y <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L73>`_
   array of the integrals of AO_i * x AO_j
   array of the integrals of AO_i * y AO_j
   array of the integrals of AO_i * z AO_j
 
 
-`ao_dipole_z <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L77>`_
+`ao_dipole_z <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L74>`_
   array of the integrals of AO_i * x AO_j
   array of the integrals of AO_i * y AO_j
   array of the integrals of AO_i * z AO_j
 
 
-`ao_kinetic_integral <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/kin_ao_ints.irp.f#L125>`_
+`ao_kinetic_integral <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/kin_ao_ints.irp.f#L122>`_
   array of the priminitve basis kinetic integrals
   \langle \chi_i |\hat{T}| \chi_j \rangle
 
@@ -93,24 +93,29 @@ Documentation
   : sum of the kinetic and nuclear electronic potential
 
 
+`ao_mono_elec_integral_diag <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/ao_mono_ints.irp.f#L2>`_
+  array of the mono electronic hamiltonian on the AOs basis
+  : sum of the kinetic and nuclear electronic potential
+
+
 `ao_nucl_elec_integral <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L1>`_
   interaction nuclear electron
 
 
-`ao_nucl_elec_integral_per_atom <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L72>`_
+`ao_nucl_elec_integral_per_atom <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L85>`_
   ao_nucl_elec_integral_per_atom(i,j,k) = -<AO(i)|1/|r-Rk|AO(j)>
   where Rk is the geometry of the kth atom
 
 
 `ao_pseudo_integral <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L1>`_
-  Pseudo-potential
+  Pseudo-potential integrals
 
 
-`ao_pseudo_integral_local <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L15>`_
+`ao_pseudo_integral_local <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L32>`_
   Local pseudo-potential
 
 
-`ao_pseudo_integral_non_local <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L121>`_
+`ao_pseudo_integral_non_local <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L139>`_
   Local pseudo-potential
 
 
@@ -136,42 +141,32 @@ Documentation
   Undocumented
 
 
+`disk_access_ao_one_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/ezfio_interface.irp.f#L40>`_
+  Read/Write AO one-electron integrals from/to disk [ Write | Read | None ]
+
+
+`disk_access_mo_one_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/ezfio_interface.irp.f#L6>`_
+  Read/Write MO one-electron integrals from/to disk [ Write | Read | None ]
+
+
 `do_print <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/check_orthonormality.irp.f#L11>`_
   Undocumented
 
 
-`give_polynom_mult_center_mono_elec <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L218>`_
+`give_polynom_mult_center_mono_elec <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L230>`_
   Undocumented
 
 
-`i_x1_pol_mult_mono_elec <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L346>`_
+`i_x1_pol_mult_mono_elec <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L358>`_
   Undocumented
 
 
-`i_x2_pol_mult_mono_elec <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L417>`_
+`i_x2_pol_mult_mono_elec <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L429>`_
   Undocumented
 
 
-`int_gaus_pol <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L488>`_
+`int_gaus_pol <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L500>`_
   Undocumented
-
-
-`mo_deriv_1_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L69>`_
-  array of the integrals of MO_i * d/dx  MO_j
-  array of the integrals of MO_i * d/dy  MO_j
-  array of the integrals of MO_i * d/dz  MO_j
-
-
-`mo_deriv_1_y <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L70>`_
-  array of the integrals of MO_i * d/dx  MO_j
-  array of the integrals of MO_i * d/dy  MO_j
-  array of the integrals of MO_i * d/dz  MO_j
-
-
-`mo_deriv_1_z <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L71>`_
-  array of the integrals of MO_i * d/dx  MO_j
-  array of the integrals of MO_i * d/dy  MO_j
-  array of the integrals of MO_i * d/dz  MO_j
 
 
 `mo_dipole_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L1>`_
@@ -193,19 +188,19 @@ Documentation
 
 
 `mo_kinetic_integral <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/kin_mo_ints.irp.f#L1>`_
-  Undocumented
+  Kinetic energy integrals in the MO basis
 
 
 `mo_mono_elec_integral <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/mo_mono_ints.irp.f#L1>`_
-  array of the mono electronic hamiltonian on the MOs basis
-  : sum of the kinetic and nuclear electronic potential
+  array of the mono electronic hamiltonian on the MOs basis :
+  sum of the kinetic and nuclear electronic potential (and pseudo potential if needed)
 
 
 `mo_nucl_elec_integral <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_mo_ints.irp.f#L1>`_
   interaction nuclear electron on the MO basis
 
 
-`mo_nucl_elec_integral_per_atom <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_mo_ints.irp.f#L30>`_
+`mo_nucl_elec_integral_per_atom <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_mo_ints.irp.f#L28>`_
   mo_nucl_elec_integral_per_atom(i,j,k) = -<MO(i)|1/|r-Rk|MO(j)>
   where Rk is the geometry of the kth atom
 
@@ -214,25 +209,25 @@ Documentation
   interaction nuclear electron on the MO basis
 
 
-`mo_spread_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L36>`_
+`mo_spread_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L32>`_
   array of the integrals of MO_i * x^2 MO_j
   array of the integrals of MO_i * y^2 MO_j
   array of the integrals of MO_i * z^2 MO_j
 
 
-`mo_spread_y <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L37>`_
+`mo_spread_y <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L33>`_
   array of the integrals of MO_i * x^2 MO_j
   array of the integrals of MO_i * y^2 MO_j
   array of the integrals of MO_i * z^2 MO_j
 
 
-`mo_spread_z <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L38>`_
+`mo_spread_z <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_mo.irp.f#L34>`_
   array of the integrals of MO_i * x^2 MO_j
   array of the integrals of MO_i * y^2 MO_j
   array of the integrals of MO_i * z^2 MO_j
 
 
-`nai_pol_mult <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L139>`_
+`nai_pol_mult <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L150>`_
   Undocumented
 
 
@@ -240,50 +235,98 @@ Documentation
   Undocumented
 
 
-`overlap_bourrin_deriv_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L365>`_
+`overlap_bourrin_deriv_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L356>`_
   Undocumented
 
 
-`overlap_bourrin_dipole <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L318>`_
+`overlap_bourrin_dipole <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L309>`_
   Undocumented
 
 
-`overlap_bourrin_spread <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L265>`_
+`overlap_bourrin_spread <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L256>`_
   Undocumented
 
 
-`overlap_bourrin_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L380>`_
+`overlap_bourrin_x <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L371>`_
   Undocumented
 
 
-`overlap_bourrin_x_abs <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L226>`_
+`overlap_bourrin_x_abs <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L217>`_
   Undocumented
 
 
-`power <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L310>`_
+`power <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/spread_dipole_ao.irp.f#L301>`_
   Undocumented
+
+
+`pseudo_dz_k_transp <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L241>`_
+  Transposed arrays for pseudopotentials
+
+
+`pseudo_dz_kl_transp <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L259>`_
+  Transposed arrays for pseudopotentials
+
+
+`pseudo_n_k_transp <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L240>`_
+  Transposed arrays for pseudopotentials
+
+
+`pseudo_n_kl_transp <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L258>`_
+  Transposed arrays for pseudopotentials
+
+
+`pseudo_v_k_transp <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L239>`_
+  Transposed arrays for pseudopotentials
+
+
+`pseudo_v_kl_transp <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_pseudo_ints.irp.f#L257>`_
+  Transposed arrays for pseudopotentials
+
+
+`read_ao_one_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/read_write.irp.f#L1>`_
+  One level of abstraction for disk_access_ao_integrals and disk_access_mo_integrals
+
+
+`read_mo_one_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/read_write.irp.f#L2>`_
+  One level of abstraction for disk_access_ao_integrals and disk_access_mo_integrals
+
+
+`read_one_e_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/read_write.irp.f#L67>`_
+  Read the 1-electron integrals into in A(m,n) from file 'filename'
 
 
 `save_ortho_mos <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/save_ortho_mos.irp.f#L1>`_
   Undocumented
 
 
-`v_e_n <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L469>`_
+`v_e_n <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L481>`_
   Undocumented
 
 
-`v_phi <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L533>`_
+`v_phi <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L545>`_
   Undocumented
 
 
-`v_r <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L517>`_
+`v_r <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L529>`_
   Undocumented
 
 
-`v_theta <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L546>`_
+`v_theta <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L558>`_
   Undocumented
 
 
-`wallis <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L562>`_
+`wallis <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/pot_ao_ints.irp.f#L574>`_
   Undocumented
+
+
+`write_ao_one_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/read_write.irp.f#L3>`_
+  One level of abstraction for disk_access_ao_integrals and disk_access_mo_integrals
+
+
+`write_mo_one_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/read_write.irp.f#L4>`_
+  One level of abstraction for disk_access_ao_integrals and disk_access_mo_integrals
+
+
+`write_one_e_integrals <http://github.com/LCPQ/quantum_package/tree/master/src/Integrals_Monoelec/read_write.irp.f#L49>`_
+  Write the 1-electron integrals stored in A(m,n) into file 'filename'
 

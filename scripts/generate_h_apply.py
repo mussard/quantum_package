@@ -1,39 +1,75 @@
 #!/usr/bin/env python
 
 import os
-file = open(os.environ["QP_ROOT"]+'/src/Determinants/H_apply.template.f','r')
-template = file.read()
-file.close()
 
 keywords = """
-subroutine
-parameters
-params_main
-initialization
+check_double_excitation
+copy_buffer
 declarations
 decls_main
-keys_work
-copy_buffer
-finalization
-generate_psi_guess
-init_thread
-printout_now
-printout_always
 deinit_thread
-skip
 init_main
 filter_integrals
-filter2h2p
+filter2p
+filter2h2p_double
+filter2h2p_single
+filter1h
+filter1p
+only_2p_single
+only_2p_double
+only_2h_single
+only_2h_double
+only_1h_single
+only_1h_double
+only_1p_single
+only_1p_double
+only_2h1p_single
+only_2h1p_double
+filter_only_1h1p_single
+filter_only_1h1p_double
+filter_only_1h2p_single
+filter_only_1h2p_double
+filter_only_2h2p_single
+filter_only_2h2p_double
 filterhole
+filter_only_1h1p_double
+filter_only_1h1p_single
 filterparticle
-do_double_excitations
-check_double_excitation
 filter_vvvv_excitation
+finalization
+generate_psi_guess
+initialization
+init_main
+init_thread
+keys_work
+omp_barrier
+omp_do
+omp_enddo
+omp_end_master
+omp_end_parallel
+omp_master
+omp_parallel
+only_2p_double
+only_2p_single
+parameters
+params_main
+printout_always
+printout_now
+subroutine
 """.split()
 
 class H_apply(object):
 
+  def read_template(self):
+    file = open(os.environ["QP_ROOT"]+'/src/Determinants/H_apply.template.f','r')
+    self.template = file.read()
+    file.close()
+    file = open(os.environ["QP_ROOT"]+'/src/Determinants/H_apply_nozmq.template.f','r')
+    self.template += file.read()
+    file.close()
+
   def __init__(self,sub,SingleRef=False,do_mono_exc=True, do_double_exc=True):
+    self.read_template()
     s = {}
     for k in keywords:
       s[k] = ""
@@ -41,27 +77,27 @@ class H_apply(object):
     s["params_post"] = ""
 
     self.selection_pt2 = None
+    self.energy = "CI_electronic_energy"
     self.perturbation = None
-
-   #s["omp_parallel"]     = """!$OMP PARALLEL DEFAULT(NONE)          &
-    s["omp_parallel"]     = """ PROVIDE elec_num_tab
-        !$OMP PARALLEL DEFAULT(SHARED)        &
-        !$OMP PRIVATE(i,j,k,l,keys_out,hole,particle,                &
-        !$OMP  occ_particle,occ_hole,j_a,k_a,other_spin,             &
-        !$OMP  hole_save,ispin,jj,l_a,ib_jb_pairs,array_pairs,       &
-        !$OMP  accu,i_a,hole_tmp,particle_tmp,occ_particle_tmp,      &
-        !$OMP  occ_hole_tmp,key_idx,i_b,j_b,key,N_elec_in_key_part_1,&
-        !$OMP  N_elec_in_key_hole_1,N_elec_in_key_part_2,            &
-        !$OMP  N_elec_in_key_hole_2,ia_ja_pairs,key_union_hole_part) &
-        !$OMP SHARED(key_in,N_int,elec_num_tab,mo_tot_num,           &
-        !$OMP  hole_1, particl_1, hole_2, particl_2,                 &
-        !$OMP  elec_alpha_num,i_generator) FIRSTPRIVATE(iproc)"""
-    s["omp_end_parallel"] = "!$OMP END PARALLEL"
-    s["omp_master"]       = "!$OMP MASTER"
-    s["omp_end_master"]   = "!$OMP END MASTER"
-    s["omp_barrier"]      = "!$OMP BARRIER"
-    s["omp_do"]           = "!$OMP DO SCHEDULE (static)"
-    s["omp_enddo"]        = "!$OMP ENDDO NOWAIT"
+    self.do_double_exc = do_double_exc
+#    s["omp_parallel"]     = """ PROVIDE elec_num_tab
+#        !$OMP PARALLEL DEFAULT(SHARED)        &
+#        !$OMP PRIVATE(i,j,k,l,keys_out,hole,particle,                &
+#        !$OMP  occ_particle,occ_hole,j_a,k_a,other_spin,             &
+#        !$OMP  hole_save,ispin,jj,l_a,ib_jb_pairs,array_pairs,       &
+#        !$OMP  accu,i_a,hole_tmp,particle_tmp,occ_particle_tmp,      &
+#        !$OMP  occ_hole_tmp,key_idx,i_b,j_b,key,N_elec_in_key_part_1,&
+#        !$OMP  N_elec_in_key_hole_1,N_elec_in_key_part_2,            &
+#        !$OMP  N_elec_in_key_hole_2,ia_ja_pairs,key_union_hole_part) &
+#        !$OMP SHARED(key_in,N_int,elec_num_tab,mo_tot_num,           &
+#        !$OMP  hole_1, particl_1, hole_2, particl_2,                 &
+#        !$OMP  elec_alpha_num,i_generator) FIRSTPRIVATE(iproc)"""
+#    s["omp_end_parallel"] = "!$OMP END PARALLEL"
+#    s["omp_master"]       = "!$OMP MASTER"
+#    s["omp_end_master"]   = "!$OMP END MASTER"
+#    s["omp_barrier"]      = "!$OMP BARRIER"
+#    s["omp_do"]           = "!$OMP DO SCHEDULE (static,1)"
+#    s["omp_enddo"]        = "!$OMP ENDDO"
 
     d = { True : '.True.', False : '.False.'}
     s["do_mono_excitations"] = d[do_mono_exc]
@@ -99,14 +135,14 @@ class H_apply(object):
   deallocate(H_jj,iorder)
     """
 
-    s["size_max"] = str(1024*128) 
+    s["size_max"] = "8192"
     s["copy_buffer"] = """call copy_H_apply_buffer_to_wf
   if (s2_eig) then
     call make_s2_eigenfunction
   endif
   SOFT_TOUCH psi_det psi_coef N_det
 """
-    s["printout_now"]   = """write(output_determinants,*)  &
+    s["printout_now"]   = """write(6,*)  &
        100.*float(i_generator)/float(N_det_generators), '% in ', wall_1-wall_0, 's'"""
     self.data = s
 
@@ -117,7 +153,7 @@ class H_apply(object):
     return self.data[key]
 
   def __repr__(self):
-    buffer = template
+    buffer = self.template
     for key,value in self.data.items():
       buffer = buffer.replace('$'+key, value)
     return buffer
@@ -131,10 +167,10 @@ class H_apply(object):
   def filter_vvvv_excitation(self):
     self["filter_vvvv_excitation"] = """
      key_union_hole_part = 0_bit_kind
-     call set_bite_to_integer(i_a,key_union_hole_part,N_int)
-     call set_bite_to_integer(j_a,key_union_hole_part,N_int)
-     call set_bite_to_integer(i_b,key_union_hole_part,N_int)
-     call set_bite_to_integer(j_b,key_union_hole_part,N_int)
+     call set_bit_to_integer(i_a,key_union_hole_part,N_int)
+     call set_bit_to_integer(j_a,key_union_hole_part,N_int)
+     call set_bit_to_integer(i_b,key_union_hole_part,N_int)
+     call set_bit_to_integer(j_b,key_union_hole_part,N_int)
      do jtest_vvvv = 1, N_int
       if(iand(key_union_hole_part(jtest_vvvv),virt_bitmask(jtest_vvvv,1).ne.key_union_hole_part(jtest_vvvv)))then
        b_cycle = .False.
@@ -150,15 +186,112 @@ class H_apply(object):
     self["filterparticle"] = """
      if(iand(ibset(0_bit_kind,j_a),hole(k_a,other_spin)).eq.0_bit_kind )cycle
     """
-  def unset_skip(self):
-    self["skip"] = """
+  def filter_1h(self):
+    self["filter1h"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1h(hole)) cycle
+    """
+  def filter_2p(self):
+    self["filter2p"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_2p(hole)) cycle
+    """
+  def filter_1p(self):
+    self["filter1p"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1p(hole)) cycle
+    """
+
+  def filter_only_2h(self):
+    self["only_2h_single"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_2h(hole).eqv. .False.) cycle
+    """
+    self["only_2h_double"] = """
+!    ! DIR$ FORCEINLINE
+     if ( is_a_2h(key).eqv. .False. )cycle
+    """
+
+  def filter_only_1h(self):
+    self["only_1h_single"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1h(hole) .eqv. .False.) cycle
+    """
+    self["only_1h_double"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1h(key) .eqv. .False.) cycle
+    """
+
+  def filter_only_1p(self):
+    self["only_1p_single"] = """
+!    ! DIR$ FORCEINLINE
+     if ( is_a_1p(hole) .eqv. .False.) cycle
+    """
+    self["only_1p_double"] = """
+!    ! DIR$ FORCEINLINE
+     if ( is_a_1p(key) .eqv. .False.) cycle
+    """
+
+  def filter_only_2h1p(self):
+    self["only_2h1p_single"] = """
+!    ! DIR$ FORCEINLINE
+     if ( is_a_2h1p(hole) .eqv. .False.) cycle
+    """
+    self["only_2h1p_double"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_2h1p(key) .eqv. .False.) cycle
+    """
+
+
+  def filter_only_2p(self):
+    self["only_2p_single"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_2p(hole).eqv. .False.) cycle
+    """
+    self["only_2p_double"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_2p(key).eqv. .False.) cycle
+    """
+
+
+  def filter_only_1h1p(self):
+    self["filter_only_1h1p_single"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1h1p(hole).eqv..False.) cycle
+    """
+    self["filter_only_1h1p_double"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1h1p(key).eqv..False.) cycle
+    """
+
+  def filter_only_2h2p(self):
+    self["filter_only_2h2p_single"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_two_holes_two_particles(hole).eqv..False.) cycle
+    """
+    self["filter_only_2h2p_double"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_two_holes_two_particles(key).eqv..False.) cycle
+    """
+
+
+  def filter_only_1h2p(self):
+    self["filter_only_1h2p_single"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1h2p(hole).eqv..False.) cycle
+    """
+    self["filter_only_1h2p_double"] = """
+!    ! DIR$ FORCEINLINE
+     if (is_a_1h2p(key).eqv..False.) cycle
     """
 
 
   def set_filter_2h_2p(self):
-    self["filter2h2p"] = """
-!    ! DIR$ FORCEINLINE
+    self["filter2h2p_double"] = """
      if (is_a_two_holes_two_particles(key)) cycle
+    """
+    self["filter2h2p_single"] = """
+     if (is_a_two_holes_two_particles(hole)) cycle
     """
 
 
@@ -190,23 +323,32 @@ class H_apply(object):
       """ 
 
       self.data["deinit_thread"] = """
-      !$ call omp_set_lock(lck)
+      ! OMP CRITICAL
       do k=1,N_st
         sum_e_2_pert_in(k) = sum_e_2_pert_in(k) + sum_e_2_pert(k)
         sum_norm_pert_in(k) = sum_norm_pert_in(k) + sum_norm_pert(k)
         sum_H_pert_diag_in(k) = sum_H_pert_diag_in(k) + sum_H_pert_diag(k)
       enddo
-      !$ call omp_unset_lock(lck)
+      ! OMP END CRITICAL
       deallocate (e_2_pert_buffer, coef_pert_buffer)
       """
-      self.data["size_max"] = "256" 
+      self.data["size_max"] = "8192" 
       self.data["initialization"] = """
-      PROVIDE CI_electronic_energy psi_selectors_coef psi_selectors E_corr_per_selectors psi_det_sorted_bit
+      PROVIDE psi_selectors_coef psi_selectors E_corr_per_selectors psi_det_sorted_bit
       """
-      self.data["keys_work"] = """
-      call perturb_buffer_%s(i_generator,keys_out,key_idx,e_2_pert_buffer,coef_pert_buffer,sum_e_2_pert, &
-       sum_norm_pert,sum_H_pert_diag,N_st,N_int)
-      """%(pert,)
+      if self.do_double_exc == True:
+          self.data["keys_work"] = """
+!          if(check_double_excitation)then
+            call perturb_buffer_%s(i_generator,keys_out,key_idx,e_2_pert_buffer,coef_pert_buffer,sum_e_2_pert, &
+             sum_norm_pert,sum_H_pert_diag,N_st,N_int,key_mask,fock_diag_tmp,%s)
+          """%(pert,self.energy)
+      else: 
+          self.data["keys_work"] = """
+            call perturb_buffer_by_mono_%s(i_generator,keys_out,key_idx,e_2_pert_buffer,coef_pert_buffer,sum_e_2_pert, &
+             sum_norm_pert,sum_H_pert_diag,N_st,N_int,key_mask,fock_diag_tmp,%s)
+          """%(pert,self.energy)
+
+
       self.data["finalization"] = """
       """
       self.data["copy_buffer"] = ""
@@ -219,7 +361,7 @@ class H_apply(object):
   double precision, intent(inout):: norm_pert(N_st) 
   double precision, intent(inout):: H_pert_diag(N_st)
   double precision               :: delta_pt2(N_st), norm_psi(N_st), pt2_old(N_st)
-  PROVIDE CI_electronic_energy N_det_generators 
+  PROVIDE N_det_generators 
   do k=1,N_st
     pt2(k) = 0.d0
     norm_pert(k) = 0.d0
@@ -228,9 +370,9 @@ class H_apply(object):
     delta_pt2(k) = 0.d0
     pt2_old(k) = 0.d0
   enddo
-        write(output_determinants,'(A12, X, A8, 3(2X, A9), 2X, A8, 2X, A8, 2X, A8)') &
+        write(6,'(A12, 1X, A8, 3(2X, A9), 2X, A8, 2X, A8, 2X, A8)') &
                  'N_generators', 'Norm', 'Delta PT2', 'PT2', 'Est. PT2', 'secs'
-        write(output_determinants,'(A12, X, A8, 3(2X, A9), 2X, A8, 2X, A8, 2X, A8)') &
+        write(6,'(A12, 1X, A8, 3(2X, A9), 2X, A8, 2X, A8, 2X, A8)') &
                  '============', '========', '=========', '=========', '=========', &
                  '========='
       """ 
@@ -243,17 +385,16 @@ class H_apply(object):
       """
       self.data["printout_now"] = """
       do k=1,N_st
-        write(output_determinants,'(I10, 4(2X, F9.6), 2X, F8.1)') &
+        write(6,'(I10, 4(2X, F9.6), 2X, F8.1)') &
                  i_generator, norm_psi(k), delta_pt2(k), pt2(k), &
                  pt2(k)/(norm_psi(k)*norm_psi(k)), &
                  wall_1-wall_0
          pt2_old(k) = pt2(k)
       enddo
-      progress_value = norm_psi(1)
       """
-      self.data["omp_parallel"]    += """&
- !$OMP SHARED(N_st) PRIVATE(e_2_pert_buffer,coef_pert_buffer) &
- !$OMP PRIVATE(sum_e_2_pert, sum_norm_pert, sum_H_pert_diag)"""
+#      self.data["omp_parallel"]    += """&
+# !$OMP SHARED(N_st) PRIVATE(e_2_pert_buffer,coef_pert_buffer) &
+# !$OMP PRIVATE(sum_e_2_pert, sum_norm_pert, sum_H_pert_diag)"""
 
   def set_selection_pt2(self,pert):
     if self.selection_pt2 is not None:
@@ -266,16 +407,16 @@ class H_apply(object):
       double precision, intent(inout) :: select_max_out"""
 
       self.data["params_post"] += ", select_max(min(i_generator,size(select_max,1)))"
-      self.data["size_max"] = str(1024*128) 
+      self.data["size_max"] = "8192"
       self.data["copy_buffer"] = """
       call copy_H_apply_buffer_to_wf
       if (s2_eig) then
         call make_s2_eigenfunction
       endif
-!      SOFT_TOUCH psi_det psi_coef N_det
+      SOFT_TOUCH psi_det psi_coef N_det
       selection_criterion_min = min(selection_criterion_min, maxval(select_max))*0.1d0
       selection_criterion = selection_criterion_min
-      call write_double(output_determinants,selection_criterion,'Selection criterion')
+      call write_double(6,selection_criterion,'Selection criterion')
       """
       self.data["keys_work"] = """
       e_2_pert_buffer = 0.d0
@@ -285,23 +426,54 @@ class H_apply(object):
       call fill_H_apply_buffer_selection(key_idx,keys_out,e_2_pert_buffer, &
         coef_pert_buffer,N_st,N_int,iproc,select_max_out) 
       """
-      self.data["omp_parallel"]    += """&
- !$OMP REDUCTION (max:select_max_out)"""
-      self.data["skip"] = """
-      if (i_generator < size_select_max) then
-        if (select_max(i_generator) < selection_criterion_min*selection_criterion_factor) then
-          !$ call omp_set_lock(lck)
-          do k=1,N_st
-            norm_psi(k) = norm_psi(k) + psi_coef_generators(i_generator,k)*psi_coef_generators(i_generator,k)
-!            delta_pt2(k) = 0.d0
-             pt2_old(k) = 0.d0
-!            pt2(k) = select_max(i_generator)
-          enddo
-          !$ call omp_unset_lock(lck)
-          cycle
-        endif
-        select_max(i_generator) = 0.d0
-      endif
-      """
+#      self.data["omp_parallel"]    += """&
+# !$OMP REDUCTION (max:select_max_out)"""
 
+
+  def unset_openmp(self):
+    for k in keywords:
+      if k.startswith("omp_"):
+        self[k] = ""
+
+
+class H_apply_zmq(H_apply):
+
+  def read_template(self):
+    file = open(os.environ["QP_ROOT"]+'/src/Determinants/H_apply.template.f','r')
+    self.template = file.read()
+    file.close()
+    file = open(os.environ["QP_ROOT"]+'/src/Determinants/H_apply_zmq.template.f','r')
+    self.template += file.read()
+    file.close()
+
+  def set_perturbation(self,pert):
+     H_apply.set_perturbation(self,pert)
+     self.data["printout_now"] = ""
+     self.data["printout_always"] = ""
+     self.data["decls_main"] = """  integer, intent(in)            :: N_st 
+  double precision, intent(inout):: pt2(N_st) 
+  double precision, intent(inout):: norm_pert(N_st) 
+  double precision, intent(inout):: H_pert_diag(N_st)
+  double precision               :: delta_pt2(N_st), norm_psi(N_st), pt2_old(N_st)
+  PROVIDE N_det_generators 
+  do k=1,N_st
+    pt2(k) = 0.d0
+    norm_pert(k) = 0.d0
+    H_pert_diag(k) = 0.d0
+    norm_psi(k) = 0.d0
+    energy(k) = %s(k)
+  enddo
+     """ % (self.energy)
+     self.data["copy_buffer"] = """
+    do i=1,N_det_generators
+      do k=1,N_st
+        pt2(k) = pt2(k) + pt2_generators(k,i)
+        norm_pert(k) = norm_pert(k) + norm_pert_generators(k,i)
+        H_pert_diag(k) = H_pert_diag(k) + H_pert_diag_generators(k,i)
+      enddo
+    enddo
+     """
+
+  def set_selection_pt2(self,pert):
+     H_apply.set_selection_pt2(self,pert)
 

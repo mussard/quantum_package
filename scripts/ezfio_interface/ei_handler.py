@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Welcom the ei_handler.
+Welcome to the ei_handler.
 We will create all the ezfio related stuff from a EZFIO.cfg file.
 
 Usage:
@@ -45,7 +45,7 @@ Optional:
                             (by default is one)
                             Example : 1, =sum(ao_num); (ao_num,3)
                             ATTENTION : The module and the value are separed by a "." not a "_".
-                            For exemple (determinants.n_det)
+                            For example (determinants.n_det)
     ezfio_name: <str>   The name for the EZFIO lib
                              (by default is <provider_name>)
     ezfio_dir: <str>    Will be the folder of EZFIO.
@@ -106,7 +106,7 @@ def is_bool(str_):
 def get_type_dict():
     """
     This function makes the correspondance between the type of value read in
-    ezfio.cfg into the f90 and Ocaml Type
+    ezfio.cfg into the f90 and OCaml Type
     return fancy_type[fancy_type] = namedtuple('Type', 'ocaml fortran')
     For example fancy_type['Ndet'].fortran = interger
                                   .ocaml   = int
@@ -126,6 +126,7 @@ def get_type_dict():
     fancy_type['integer*8'] = Type(None, "int", "integer*8")
 
     fancy_type['int'] = Type(None, "int", "integer")
+    fancy_type['int64'] = Type(None, "int64", "integer*8")
 
     fancy_type['float'] = Type(None, "float", "double precision")
     fancy_type['double precision'] = Type(None, "float", "double precision")
@@ -143,6 +144,7 @@ def get_type_dict():
 
     # Dict to change ocaml LowLevel type into FortranLowLevel type
     ocaml_to_fortran = {"int": "integer",
+                        "int64": "integer*8",
                         "float": "double precision",
                         "logical": "logical",
                         "string": "character*32"}
@@ -180,6 +182,8 @@ def get_type_dict():
         fancy_type[str_fancy_type] = Type(str_fancy_type,
                                           str_ocaml_type,
                                           str_fortran_type)
+
+    fancy_type["MO_class"] = Type("MO_class", "MO_class", "character*(32)")
 
     # ~#~#~#~#~#~#~#~ #
     # F i n a l i z e #
@@ -325,7 +329,8 @@ def create_ezfio_provider(dict_ezfio_cfg):
             ez_p.set_doc(dict_info['doc'])
             ez_p.set_ezfio_dir(dict_info['ezfio_dir'])
             ez_p.set_ezfio_name(dict_info['ezfio_name'])
-            ez_p.set_output("output_%s" % dict_info['module'].lower)
+            ez_p.set_output("6")
+#            ez_p.set_output("output_%s" % dict_info['module'].lower)
 
             # (nuclei.nucl_num,pseudo.klocmax) => (nucl_num,klocmax)
             ez_p.set_size(re.sub(r'\w+\.', "", dict_info['size']))
@@ -343,7 +348,7 @@ def save_ezfio_provider(path_head, dict_code_provider):
     path = "{0}/ezfio_interface.irp.f".format(path_head)
 
     l_output = ["! DO NOT MODIFY BY HAND",
-                "! Created by $QP_ROOT/scripts/ezfio_interface.py",
+                "! Created by $QP_ROOT/scripts/ezfio_interface/ei_handler.py",
                 "! from file {0}/EZFIO.cfg".format(path_head),
                 "\n"]
 
@@ -539,7 +544,7 @@ def create_ocaml_input(dict_ezfio_cfg, module_lower):
 
     template += ["open Qptypes;;",
                  "open Qputils;;",
-                 "open Core.Std;;",
+                 "open Core;;",
                  "",
                  "module {0} : sig".format(module_lower.capitalize())]
 
@@ -613,7 +618,7 @@ def save_ocaml_input(module_lower, str_ocaml_input):
 
 def get_l_module_with_auto_generate_ocaml_lower():
     """
-    Get all modules which have EZFIO.cfg with Ocaml data
+    Get all modules which have EZFIO.cfg with OCaml data
         (NB `search` in all the lines and `match` only in one)
     """
 

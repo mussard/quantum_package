@@ -1,4 +1,4 @@
-open Core.Std;;
+open Core;;
 open Qptypes;;
 open Qputils;;
 
@@ -55,7 +55,6 @@ let executables = lazy (
     In_channel.input_lines in_channel
      |> List.map ~f:(fun x ->
          let e = String.split ~on:' ' x
-           |> List.map ~f:String.strip
            |> List.filter ~f:(fun x -> x <> "")
          in
          match e with
@@ -128,3 +127,14 @@ let get_ezfio_default directory data =
   |> aux 
 ;;
 
+let ezfio_work ezfio_file = 
+  let result = 
+    Filename.concat ezfio_file  "work"
+  in
+  begin
+    match Sys.is_directory result with
+    | `Yes -> ()
+    | _ -> Unix.mkdir result
+  end;
+  result
+;;

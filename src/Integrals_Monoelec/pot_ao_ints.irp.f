@@ -1,75 +1,88 @@
- BEGIN_PROVIDER [ double precision, ao_nucl_elec_integral, (ao_num_align,ao_num)]
- BEGIN_DOC
-! interaction nuclear electron
- END_DOC
- implicit none
- double precision  :: alpha, beta, gama, delta
- integer           :: num_A,num_B
- double precision  :: A_center(3),B_center(3),C_center(3)
- integer           :: power_A(3),power_B(3)
- integer           :: i,j,k,l,n_pt_in,m
- double precision  ::overlap_x,overlap_y,overlap_z,overlap,dx,NAI_pol_mult
+BEGIN_PROVIDER [ double precision, ao_nucl_elec_integral, (ao_num,ao_num)]
+   BEGIN_DOC
+   ! interaction nuclear electron
+   END_DOC
+   implicit none
+   double precision               :: alpha, beta, gama, delta
+   integer                        :: num_A,num_B
+   double precision               :: A_center(3),B_center(3),C_center(3)
+   integer                        :: power_A(3),power_B(3)
+   integer                        :: i,j,k,l,n_pt_in,m
+   double precision               :: overlap_x,overlap_y,overlap_z,overlap,dx,NAI_pol_mult
+   
+   if (read_ao_one_integrals) then
+    call read_one_e_integrals('ao_ne_integral', ao_nucl_elec_integral,      &
+            size(ao_nucl_elec_integral,1), size(ao_nucl_elec_integral,2))
+     print *,  'AO N-e integrals read from disk'
+   else
+     
+     ao_nucl_elec_integral = 0.d0
+     
+     !        _
+     ! /|  / |_)
+     !  | /  | \
+     !
+     
+     !$OMP PARALLEL                                                  &
+         !$OMP DEFAULT (NONE)                                        &
+         !$OMP PRIVATE (i,j,k,l,m,alpha,beta,A_center,B_center,C_center,power_A,power_B,&
+         !$OMP          num_A,num_B,Z,c,n_pt_in)                     &
+         !$OMP SHARED (ao_num,ao_prim_num,ao_expo_ordered_transp,ao_power,ao_nucl,nucl_coord,ao_coef_normalized_ordered_transp,&
+         !$OMP         n_pt_max_integrals,ao_nucl_elec_integral,nucl_num,nucl_charge)
+     
+     n_pt_in = n_pt_max_integrals
+     
+     !$OMP DO SCHEDULE (dynamic)
+     
+     do j = 1, ao_num
+       num_A = ao_nucl(j)
+       power_A(1:3)= ao_power(j,1:3)
+       A_center(1:3) = nucl_coord(num_A,1:3)
+       
+       do i = 1, ao_num
+         
+         num_B = ao_nucl(i)
+         power_B(1:3)= ao_power(i,1:3)
+         B_center(1:3) = nucl_coord(num_B,1:3)
+         
+         do l=1,ao_prim_num(j)
+           alpha = ao_expo_ordered_transp(l,j)
+           
+           do m=1,ao_prim_num(i)
+             beta = ao_expo_ordered_transp(m,i)
+             
+             double precision               :: c
+             c = 0.d0
+             
+             do  k = 1, nucl_num
+               double precision               :: Z
+               Z = nucl_charge(k)
+               
+               C_center(1:3) = nucl_coord(k,1:3)
+               
+               c = c - Z*NAI_pol_mult(A_center,B_center,power_A,power_B,alpha,beta,C_center,n_pt_in)
+               
+             enddo
+             ao_nucl_elec_integral(i,j) = ao_nucl_elec_integral(i,j) +&
+                 ao_coef_normalized_ordered_transp(l,j)*ao_coef_normalized_ordered_transp(m,i)*c
+           enddo
+         enddo
+       enddo
+     enddo
+     
+     !$OMP END DO
+     !$OMP END PARALLEL
+   endif
+   if (write_ao_one_integrals) then
+    call write_one_e_integrals('ao_ne_integral', ao_nucl_elec_integral, &
+            size(ao_nucl_elec_integral,1), size(ao_nucl_elec_integral,2))
+     print *,  'AO N-e integrals written to disk'
+   endif
+   
+   
+END_PROVIDER
 
-  ao_nucl_elec_integral = 0.d0
-
-  !        _  
-  ! /|  / |_) 
-  !  | /  | \ 
-  !          
-
-  !$OMP PARALLEL &
-  !$OMP DEFAULT (NONE) &
-  !$OMP PRIVATE (i,j,k,l,m,alpha,beta,A_center,B_center,C_center,power_A,power_B, &
-  !$OMP          num_A,num_B,Z,c,n_pt_in) &
-  !$OMP SHARED (ao_num,ao_prim_num,ao_expo_ordered_transp,ao_power,ao_nucl,nucl_coord,ao_coef_normalized_ordered_transp, &
-  !$OMP         n_pt_max_integrals,ao_nucl_elec_integral,nucl_num,nucl_charge) 
-
-  n_pt_in = n_pt_max_integrals
-  
-  !$OMP DO SCHEDULE (guided)
-
-  do j = 1, ao_num
-    num_A = ao_nucl(j)
-    power_A(1:3)= ao_power(j,1:3)
-    A_center(1:3) = nucl_coord(num_A,1:3)
-    
-    do i = 1, ao_num
-      
-      num_B = ao_nucl(i)
-      power_B(1:3)= ao_power(i,1:3)
-      B_center(1:3) = nucl_coord(num_B,1:3)
-      
-      do l=1,ao_prim_num(j)
-        alpha = ao_expo_ordered_transp(l,j)
-        
-        do m=1,ao_prim_num(i)
-          beta = ao_expo_ordered_transp(m,i)
-          
-          double precision               :: c
-          c = 0.d0
-          
-          do  k = 1, nucl_num
-            double precision               :: Z
-            Z = nucl_charge(k)
-            
-            C_center(1:3) = nucl_coord(k,1:3)
-            
-            c = c - Z*NAI_pol_mult(A_center,B_center,power_A,power_B,alpha,beta,C_center,n_pt_in)
-            
-          enddo
-          ao_nucl_elec_integral(i,j) = ao_nucl_elec_integral(i,j) +  &
-                                       ao_coef_normalized_ordered_transp(l,j)*ao_coef_normalized_ordered_transp(m,i)*c
-        enddo
-      enddo
-    enddo
-  enddo
-
- !$OMP END DO 
- !$OMP END PARALLEL
-
- END_PROVIDER
-
- BEGIN_PROVIDER [ double precision, ao_nucl_elec_integral_per_atom, (ao_num_align,ao_num,nucl_num)]
+ BEGIN_PROVIDER [ double precision, ao_nucl_elec_integral_per_atom, (ao_num,ao_num,nucl_num)]
  BEGIN_DOC
 ! ao_nucl_elec_integral_per_atom(i,j,k) = -<AO(i)|1/|r-Rk|AO(j)> 
 ! where Rk is the geometry of the kth atom
@@ -81,23 +94,17 @@
  integer :: power_A(3),power_B(3)
  integer :: i,j,k,l,n_pt_in,m
  double precision ::overlap_x,overlap_y,overlap_z,overlap,dx,NAI_pol_mult
- ! Important for OpenMP
 
  ao_nucl_elec_integral_per_atom = 0.d0
 
-
- do  k = 1, nucl_num
-  C_center(1) = nucl_coord(k,1)
-  C_center(2) = nucl_coord(k,2)
-  C_center(3) = nucl_coord(k,3)
  !$OMP PARALLEL &
  !$OMP DEFAULT (NONE) &
- !$OMP PRIVATE (i,j,l,m,alpha,beta,A_center,B_center,power_A,power_B, &
- !$OMP  num_A,num_B,c,n_pt_in) &
- !$OMP SHARED (k,ao_num,ao_prim_num,ao_expo_ordered_transp,ao_power,ao_nucl,nucl_coord,ao_coef_normalized_ordered_transp, &
- !$OMP  n_pt_max_integrals,ao_nucl_elec_integral_per_atom,nucl_num,C_center)
+ !$OMP PRIVATE (i,j,k,l,m,alpha,beta,A_center,B_center,power_A,power_B, &
+ !$OMP  num_A,num_B,c,n_pt_in,C_center) &
+ !$OMP SHARED (ao_num,ao_prim_num,ao_expo_ordered_transp,ao_power,ao_nucl,nucl_coord,ao_coef_normalized_ordered_transp, &
+ !$OMP  n_pt_max_integrals,ao_nucl_elec_integral_per_atom,nucl_num)
  n_pt_in = n_pt_max_integrals
- !$OMP DO SCHEDULE (guided)
+ !$OMP DO SCHEDULE (dynamic)
 
   double precision :: c
   do j = 1, ao_num
@@ -108,29 +115,33 @@
    A_center(1) = nucl_coord(num_A,1)
    A_center(2) = nucl_coord(num_A,2)
    A_center(3) = nucl_coord(num_A,3)
-   do i = 1, ao_num
-    power_B(1)= ao_power(i,1)
-    power_B(2)= ao_power(i,2)
-    power_B(3)= ao_power(i,3)
-    num_B = ao_nucl(i)
-    B_center(1) = nucl_coord(num_B,1)
-    B_center(2) = nucl_coord(num_B,2)
-    B_center(3) = nucl_coord(num_B,3)
-    c = 0.d0
-    do l=1,ao_prim_num(j)
-     alpha = ao_expo_ordered_transp(l,j)
-     do m=1,ao_prim_num(i)
-      beta = ao_expo_ordered_transp(m,i)
-      c = c + NAI_pol_mult(A_center,B_center,power_A,power_B,alpha,beta,C_center,n_pt_in) &
-          * ao_coef_normalized_ordered_transp(l,j)*ao_coef_normalized_ordered_transp(m,i)
+   do  k = 1, nucl_num
+    C_center(1) = nucl_coord(k,1)
+    C_center(2) = nucl_coord(k,2)
+    C_center(3) = nucl_coord(k,3)
+    do i = 1, ao_num
+     power_B(1)= ao_power(i,1)
+     power_B(2)= ao_power(i,2)
+     power_B(3)= ao_power(i,3)
+     num_B = ao_nucl(i)
+     B_center(1) = nucl_coord(num_B,1)
+     B_center(2) = nucl_coord(num_B,2)
+     B_center(3) = nucl_coord(num_B,3)
+     c = 0.d0
+     do l=1,ao_prim_num(j)
+      alpha = ao_expo_ordered_transp(l,j)
+      do m=1,ao_prim_num(i)
+       beta = ao_expo_ordered_transp(m,i)
+       c = c + NAI_pol_mult(A_center,B_center,power_A,power_B,alpha,beta,C_center,n_pt_in) &
+           * ao_coef_normalized_ordered_transp(l,j)*ao_coef_normalized_ordered_transp(m,i)
+      enddo
      enddo
+     ao_nucl_elec_integral_per_atom(i,j,k) = -c
     enddo
-    ao_nucl_elec_integral_per_atom(i,j,k) = -c
    enddo
   enddo
  !$OMP END DO 
  !$OMP END PARALLEL
- enddo
 
 END_PROVIDER
 
@@ -141,6 +152,7 @@ double precision function NAI_pol_mult(A_center,B_center,power_A,power_B,alpha,b
 !       int{dr} of (x-A_x)^ax (x-B_X)^bx exp(-alpha (x-A_x)^2 - beta (x-B_x)^2 ) 1/(r-R_c)
 
 implicit none
+integer, intent(in) :: n_pt_in
 double precision,intent(in) :: C_center(3),A_center(3),B_center(3),alpha,beta
 integer :: power_A(3),power_B(3)
 integer :: i,j,k,l,n_pt
@@ -148,6 +160,8 @@ double precision :: P_center(3)
 double precision :: d(0:n_pt_in),pouet,coeff,rho,dist,const,pouet_2,p,p_inv,factor
 double precision :: I_n_special_exact,integrate_bourrin,I_n_bibi
 double precision ::  V_e_n,const_factor,dist_integral,tmp
+double precision :: accu,epsilo,rint
+integer :: n_pt_out,lmax
 include 'Utils/constants.include.F'
   if ( (A_center(1)/=B_center(1)).or. &
        (A_center(2)/=B_center(2)).or. &
@@ -173,7 +187,7 @@ include 'Utils/constants.include.F'
   enddo
   const_factor = dist*rho
   const = p * dist_integral
-  if(const_factor.ge.80.d0)then
+  if(const_factor > 80.d0)then
    NAI_pol_mult = 0.d0
    return
   endif
@@ -200,8 +214,6 @@ include 'Utils/constants.include.F'
    NAI_pol_mult = 0.d0
    return
   endif
-  double precision :: accu,epsilo,rint
-  integer :: n_pt_in,n_pt_out,lmax
   accu = 0.d0
 
 ! 1/r1 standard attraction integral
@@ -377,10 +389,10 @@ recursive subroutine I_x1_pol_mult_mono_elec(a,c,R1x,R1xp,R2x,d,nd,n_pt_in)
        Y(ix) = 0.d0
      enddo
      call I_x2_pol_mult_mono_elec(c-1,R1x,R1xp,R2x,X,nx,n_pt_in)
-       do ix=0,nx
-         X(ix) *= c
-       enddo
-       call multiply_poly(X,nx,R2x,2,d,nd)
+     do ix=0,nx
+       X(ix) *= dble(c)
+     enddo
+     call multiply_poly(X,nx,R2x,2,d,nd)
      ny=0
      call I_x2_pol_mult_mono_elec(c,R1x,R1xp,R2x,Y,ny,n_pt_in)
      call multiply_poly(Y,ny,R1x,2,d,nd)
@@ -392,10 +404,10 @@ recursive subroutine I_x1_pol_mult_mono_elec(a,c,R1x,R1xp,R2x,d,nd,n_pt_in)
      nx = 0
      call I_x1_pol_mult_mono_elec(a-2,c,R1x,R1xp,R2x,X,nx,n_pt_in)
 !    print*,'nx a-2,c= ',nx
-       do ix=0,nx
-         X(ix) *= a-1
-       enddo
-       call multiply_poly(X,nx,R2x,2,d,nd)
+     do ix=0,nx
+       X(ix) *= dble(a-1)
+     enddo
+     call multiply_poly(X,nx,R2x,2,d,nd)
 !    print*,'nd out = ',nd
 
      nx = nd
@@ -405,7 +417,7 @@ recursive subroutine I_x1_pol_mult_mono_elec(a,c,R1x,R1xp,R2x,d,nd,n_pt_in)
      call I_x1_pol_mult_mono_elec(a-1,c-1,R1x,R1xp,R2x,X,nx,n_pt_in)
 !      print*,'nx a-1,c-1 = ',nx
        do ix=0,nx
-         X(ix) *= c
+         X(ix) *= dble(c)
        enddo
        call multiply_poly(X,nx,R2x,2,d,nd)
      ny=0
@@ -446,7 +458,7 @@ recursive subroutine I_x2_pol_mult_mono_elec(c,R1x,R1xp,R2x,d,nd,dim)
      call I_x1_pol_mult_mono_elec(0,c-2,R1x,R1xp,R2x,X,nx,dim)
 !      print*,'nx 0,c-2 = ',nx
        do ix=0,nx
-         X(ix) *= c-1
+         X(ix) *= dble(c-1)
        enddo
        call multiply_poly(X,nx,R2x,2,d,nd)
 !      print*,'nd = ',nd

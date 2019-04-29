@@ -25,6 +25,7 @@ except ImportError:
                                       "quantum_package.rc"))
 
     print "\n".join(["", "Error:", "source %s" % f, ""])
+    raise
     sys.exit(1)
 
 
@@ -35,7 +36,9 @@ except ImportError:
 
 from qp_path import QP_ROOT, QP_SRC, QP_EZFIO
 
-EZFIO_LIB = join(QP_ROOT, "lib", "libezfio.a")
+LIB = "" # join(QP_ROOT, "lib", "rdtsc.o") 
+EZFIO_LIB = join(QP_ROOT, "lib", "libezfio_irp.a") 
+ZMQ_LIB = join(QP_ROOT, "lib", "libf77zmq.a") + " "  + join(QP_ROOT, "lib", "libzmq.a") + " -lstdc++ -lrt"
 ROOT_BUILD_NINJA = join(QP_ROOT, "config", "build.ninja")
 
 header = r"""#
@@ -94,7 +97,10 @@ def ninja_create_env_variable(pwd_config_file):
         l_string.append(str_)
 
     lib_lapack = get_compilation_option(pwd_config_file, "LAPACK_LIB")
-    l_string.append("{0} = {1} {2}".format("LIB", lib_lapack, EZFIO_LIB))
+    lib_usr = get_compilation_option(pwd_config_file, "LIB")
+
+    str_lib = " ".join([LIB, lib_lapack, EZFIO_LIB, ZMQ_LIB, lib_usr])
+    l_string.append("LIB = {0} ".format(str_lib))
 
     l_string.append("")
 
@@ -182,7 +188,7 @@ def ninja_ezfio_config_rule():
 
 def get_children_of_ezfio_cfg(l_module_with_ezfio_cfg):
     """
-    From a module list of ezfio_cfg return all the stuff create by him
+    From a module list of ezfio_cfg return all the stuff created by it
     """
     config_folder = join(QP_EZFIO, "config")
 
@@ -260,9 +266,9 @@ def ninja_ezfio_rule():
     l_flag = ["export {0}='${0}'".format(flag)
               for flag in ["FC", "FCFLAGS", "IRPF90"]]
 
-    install_lib_ezfio = join(QP_ROOT, 'install', 'EZFIO', "lib", "libezfio.a")
+    install_lib_ezfio = join(QP_ROOT, 'install', 'EZFIO', "lib", "libezfio_irp.a")
     l_cmd = ["cd {0}".format(QP_EZFIO)] + l_flag
-    l_cmd += ["rm -f make.config ; ninja && ln -sf {0} {1}".format(install_lib_ezfio, EZFIO_LIB)]
+    l_cmd += ["rm -f make.config ; ninja && rm -f {1} ; ln -sf {0} {1}".format(install_lib_ezfio, EZFIO_LIB)]
 
     l_string = ["rule build_ezfio",
                 "   command = {0}".format(" ; ".join(l_cmd)),
@@ -303,7 +309,7 @@ def ninja_symlink_rule():
     """
     Return the command to create for the symlink
     """
-    return ["rule build_symlink", "   command =  ln -sf $in $out", ""]
+    return ["rule build_symlink", "   command =  rm -f $out ; ln -sf $in $out", ""]
 
 
 def ninja_symlink_build(path_module, l_symlink):
@@ -385,6 +391,8 @@ def get_l_file_for_module(path_module):
             l_src.append(f)
             obj = '{0}.o'.format(os.path.splitext(f)[0])
             l_obj.append(obj)
+        elif f.lower().endswith(".o"):
+             l_obj.append(join(path_module.abs, f))
         elif f == "EZFIO.cfg":
             l_depend.append(join(path_module.abs, "ezfio_interface.irp.f"))
 
@@ -471,7 +479,7 @@ def ninja_irpf90_make_build(path_module, l_needed_molule, d_irp):
     # ~#~#~#~#~#~ #
 
     l_creation = [join(path_module.abs, i)
-                  for i in ["irpf90.make", "irpf90_entities", "tags",
+                  for i in ["irpf90_entities", "tags",
                             "IRPF90_temp/build.ninja"]]
     str_creation = " ".join(l_creation)
 
@@ -635,7 +643,7 @@ def ninja_binaries_rule():
     # c m d #
     # ~#~#~ #
 
-    l_cmd = ["cd $module_abs/IRPF90_temp", "ninja $out && touch $out"]
+    l_cmd = ["cd $module_abs/IRPF90_temp", "ninja $out && for i in $out ; do [ -x $$i ] && touch $$i ; done"]
 
     # ~#~#~#~#~#~ #
     # s t r i n g #
@@ -707,7 +715,7 @@ def ninja_dot_tree_rule():
     l_string = [
         "rule build_dot_tree", "   command = {0}".format(" ; ".join(l_cmd)),
         "   generator = 1",
-        "   description = Generate Png representtion of the Tree Dependencies of $module_rel",
+        "   description = Generating Png representation of the Tree Dependencies of $module_rel",
         ""
     ]
 
@@ -783,10 +791,18 @@ def create_build_ninja_global():
                  "  command = module_handler.py clean --all",
                  "  description = Cleaning all modules", ""]
 
+    l_string += ["rule make_ocaml",
+                 "  command = make -C {0}/ocaml".format(QP_ROOT),
+                 "  pool = console",
+                 "  description = Compiling OCaml tools",
+                 ""]
+
+
     l_string += ["build dummy_target: update_build_ninja_root",
+                 "build ocaml_target: make_ocaml all",
                  "",
                  "build all: make_all dummy_target",
-                 "default all",
+                 "default ocaml_target",
                  "",
                  "build clean: make_clean dummy_target",
                  "", ]
@@ -811,6 +827,7 @@ if __name__ == "__main__":
                 arguments = pickle.load(handle)
         except IOError:
             print "You need to create first my friend"
+            raise
             sys.exit(1)
 
     elif arguments["create"]:
@@ -909,10 +926,11 @@ if __name__ == "__main__":
         if module not in d_binaries:
             l_msg = ["{0} is a root module but does not contain a main file.",
                      "- Create it in {0}",
-                     "- Or delete {0} `qp_install_module.py uninstall {0}`",
+                     "- Or delete {0} `qp_module.py uninstall {0}`",
                      "- Or install a module that needs {0} with a main "]
 
             print "\n".join(l_msg).format(module.rel)
+            raise
             sys.exit(1)
 
     # ~#~#~#~#~#~#~#~#~#~#~#~ #

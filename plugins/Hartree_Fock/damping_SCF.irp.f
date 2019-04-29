@@ -12,13 +12,13 @@ subroutine damping_SCF
   character                      :: save_char
 
   allocate(                                                          &
-      D_alpha( ao_num_align, ao_num ),                               &
-      D_beta( ao_num_align, ao_num ),                                &
-      F_new( ao_num_align, ao_num ),                                 &
-      D_new_alpha( ao_num_align, ao_num ),                           &
-      D_new_beta( ao_num_align, ao_num ),                            &
-      delta_alpha( ao_num_align, ao_num ),                           &
-      delta_beta( ao_num_align, ao_num ))
+      D_alpha( ao_num, ao_num ),                               &
+      D_beta( ao_num, ao_num ),                                &
+      F_new( ao_num, ao_num ),                                 &
+      D_new_alpha( ao_num, ao_num ),                           &
+      D_new_beta( ao_num, ao_num ),                            &
+      delta_alpha( ao_num, ao_num ),                           &
+      delta_beta( ao_num, ao_num ))
   
   do j=1,ao_num
     do i=1,ao_num
@@ -28,11 +28,14 @@ subroutine damping_SCF
   enddo
   
   
-  call write_time(output_hartree_fock)
+  call write_time(6)
 
-  write(output_hartree_fock,'(A4,X,A16, X, A16, X, A16, X, A4 )'), '====','================','================','================', '===='
-  write(output_hartree_fock,'(A4,X,A16, X, A16, X, A16, X, A4 )'), '  N ', 'Energy  ', 'Energy diff  ', 'Density diff  ', 'Save'
-  write(output_hartree_fock,'(A4,X,A16, X, A16, X, A16, X, A4 )'), '====','================','================','================', '===='
+  write(6,'(A4,1X,A16, 1X, A16, 1X, A16, 1X, A4 )')  &
+    '====','================','================','================', '===='
+  write(6,'(A4,1X,A16, 1X, A16, 1X, A16, 1X, A4 )')  &
+    '  N ', 'Energy  ', 'Energy diff  ', 'Density diff  ', 'Save'
+  write(6,'(A4,1X,A16, 1X, A16, 1X, A16, 1X, A4 )')  &
+    '====','================','================','================', '===='
 
   E = HF_energy + 1.d0
   E_min = HF_energy
@@ -55,7 +58,7 @@ subroutine damping_SCF
       save_char = ' '
     endif
 
-    write(output_hartree_fock,'(I4,X,F16.10, X, F16.10, X, F16.10, 3X, A )'), &
+    write(6,'(I4,1X,F16.10, 1X, F16.10, 1X, F16.10, 3X, A )')  &
       k, E, delta_E, delta_D, save_char
     
     D_alpha = HF_density_matrix_ao_alpha
@@ -83,7 +86,7 @@ subroutine damping_SCF
       if ((E_half > E).and.(E_new < E)) then
         lambda = 1.d0
         exit
-      else if ((E_half > E).and.(lambda > 5.d-2)) then
+      else if ((E_half > E).and.(lambda > 5.d-4)) then
         lambda = 0.5d0 * lambda
         E_new = E_half
       else
@@ -93,7 +96,7 @@ subroutine damping_SCF
 
     a = (E_new + E - 2.d0*E_half)*2.d0
     b = -E_new - 3.d0*E + 4.d0*E_half
-    lambda = -lambda*b/a
+    lambda = -lambda*b/(a+1.d-16)
     D_alpha = (1.d0-lambda) * D_alpha + lambda * D_new_alpha
     D_beta  = (1.d0-lambda) * D_beta  + lambda * D_new_beta 
     delta_E = HF_energy - E
@@ -111,17 +114,18 @@ subroutine damping_SCF
     mo_coef = eigenvectors_fock_matrix_mo
     TOUCH mo_coef
 
-
   enddo
-  write(output_hartree_fock,'(A4,X,A16, X, A16, X, A16, X, A4 )'), '====','================','================','================', '===='
-  write(output_hartree_fock,*)
+  write(6,'(A4,1X,A16, 1X, A16, 1X, A16, 1X, A4 )')  '====','================','================','================', '===='
+  write(6,*)
   
-  call mo_as_eigvectors_of_mo_matrix(Fock_matrix_mo,size(Fock_matrix_mo,1),size(Fock_matrix_mo,2),mo_label)
+  if(.not.no_oa_or_av_opt)then
+   call mo_as_eigvectors_of_mo_matrix(Fock_matrix_mo,size(Fock_matrix_mo,1),size(Fock_matrix_mo,2),mo_label,1,.true.)
+  endif
 
-  call write_double(output_hartree_fock, E_min, 'Hartree-Fock energy')
+  call write_double(6, E_min, 'Hartree-Fock energy')
   call ezfio_set_hartree_fock_energy(E_min)
 
-  call write_time(output_hartree_fock)
+  call write_time(6)
 
   deallocate(D_alpha,D_beta,F_new,D_new_alpha,D_new_beta,delta_alpha,delta_beta)
 end

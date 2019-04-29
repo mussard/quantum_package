@@ -37,7 +37,7 @@ subroutine give_explicit_poly_and_gaussian_x(P_new,P_center,p,fact_k,iorder,alph
   call recentered_poly2(P_a(0),A_center,P_center,a,P_b(0),B_center,P_center,b)
   n_new = 0
 
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call multiply_poly(P_a(0),a,P_b(0),b,P_new(0),n_new)
   iorder = a + b
 end
@@ -76,44 +76,41 @@ subroutine give_explicit_poly_and_gaussian(P_new,P_center,p,fact_k,iorder,alpha,
   P_new(0,2) = 0.d0
   P_new(0,3) = 0.d0
   
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call gaussian_product(alpha,A_center,beta,B_center,fact_k,p,P_center)
-  if (fact_k < 1.d-8) then
+  if (fact_k < thresh) then
     fact_k = 0.d0
     return
   endif
   
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call recentered_poly2(P_a(0,1),A_center(1),P_center(1),a(1),P_b(0,1),B_center(1),P_center(1),b(1))
   iorder(1) = a(1) + b(1)
-  !DIR$ VECTOR ALIGNED
   do i=0,iorder(1)
     P_new(i,1) = 0.d0
   enddo
   n_new=0
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call multiply_poly(P_a(0,1),a(1),P_b(0,1),b(1),P_new(0,1),n_new)
   
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call recentered_poly2(P_a(0,2),A_center(2),P_center(2),a(2),P_b(0,2),B_center(2),P_center(2),b(2))
   iorder(2) = a(2) + b(2)
-  !DIR$ VECTOR ALIGNED
   do i=0,iorder(2)
     P_new(i,2) = 0.d0
   enddo
   n_new=0
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call multiply_poly(P_a(0,2),a(2),P_b(0,2),b(2),P_new(0,2),n_new)
   
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call recentered_poly2(P_a(0,3),A_center(3),P_center(3),a(3),P_b(0,3),B_center(3),P_center(3),b(3))
   iorder(3) = a(3) + b(3)
-  !DIR$ VECTOR ALIGNED
   do i=0,iorder(3)
     P_new(i,3) = 0.d0
   enddo
   n_new=0
-  !DEC$ FORCEINLINE
+  !DIR$ FORCEINLINE
   call multiply_poly(P_a(0,3),a(3),P_b(0,3),b(3),P_new(0,3),n_new)
   
 end
@@ -200,7 +197,7 @@ subroutine gaussian_product(a,xa,b,xb,k,p,xp)
   ASSERT (b>0.)
   
   double precision               :: xab(3), ab
-  !DEC$ ATTRIBUTES ALIGN : $IRP_ALIGN :: xab
+  !DIR$ ATTRIBUTES ALIGN : $IRP_ALIGN :: xab
   
   p = a+b
   p_inv = 1.d0/(a+b)
@@ -210,7 +207,7 @@ subroutine gaussian_product(a,xa,b,xb,k,p,xp)
   xab(3) = xa(3)-xb(3)
   ab = ab*p_inv
   k = ab*(xab(1)*xab(1)+xab(2)*xab(2)+xab(3)*xab(3))
-  if (k > 20.d0) then
+  if (k > 40.d0) then
     k=0.d0
     return
   endif
@@ -249,7 +246,7 @@ subroutine gaussian_product_x(a,xa,b,xb,k,p,xp)
   xab = xa-xb
   ab = ab*p_inv
   k = ab*xab*xab
-  if (k > 20.d0) then
+  if (k > 40.d0) then
     k=0.d0
     return
   endif
@@ -282,7 +279,6 @@ subroutine multiply_poly(b,nb,c,nc,d,nd)
   endif
   ndtmp = nb+nc
   
-  !DIR$ VECTOR ALIGNED
   do ic = 0,nc
     d(ic) = d(ic) + c(ic) * b(0)
   enddo
@@ -580,7 +576,7 @@ double precision function rint_large_n(n,rho)
     enddo
     t2=0.d0
     do l=0,k
-      t2=t2+(-1.d0)**l/fact(l+1)/fact(k-l)
+      t2=t2+(-1.d0)**l/(fact(l+1)*fact(k-l))
     enddo
     alpha_k=t2*fact(k+1)*fact(k)*(-1.d0)**k
     alpha_k= alpha_k/t1

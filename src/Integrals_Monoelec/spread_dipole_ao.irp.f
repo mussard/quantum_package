@@ -1,6 +1,6 @@
-  BEGIN_PROVIDER [ double precision, ao_spread_x, (ao_num_align,ao_num)]
- &BEGIN_PROVIDER [ double precision, ao_spread_y, (ao_num_align,ao_num)]
- &BEGIN_PROVIDER [ double precision, ao_spread_z, (ao_num_align,ao_num)]
+  BEGIN_PROVIDER [ double precision, ao_spread_x, (ao_num,ao_num)]
+ &BEGIN_PROVIDER [ double precision, ao_spread_y, (ao_num,ao_num)]
+ &BEGIN_PROVIDER [ double precision, ao_spread_z, (ao_num,ao_num)]
  BEGIN_DOC
  ! array of the integrals of AO_i * x^2 AO_j
  ! array of the integrals of AO_i * y^2 AO_j
@@ -35,8 +35,6 @@
    power_A(1)  = ao_power( j, 1 )
    power_A(2)  = ao_power( j, 2 )
    power_A(3)  = ao_power( j, 3 )
-   !DEC$ VECTOR ALIGNED
-   !DEC$ VECTOR ALWAYS
    do i= 1,ao_num
     B_center(1) = nucl_coord( ao_nucl(i), 1 )
     B_center(2) = nucl_coord( ao_nucl(i), 2 )
@@ -49,17 +47,16 @@
     accu_z = 0.d0
     do n = 1,ao_prim_num(j)
      alpha = ao_expo_ordered_transp(n,j)
-     !DEC$ VECTOR ALIGNED
      do l = 1, ao_prim_num(i)
       c = ao_coef_normalized_ordered_transp(n,j)*ao_coef_normalized_ordered_transp(l,i)
       beta = ao_expo_ordered_transp(l,i)
       call overlap_gaussian_xyz(A_center,B_center,alpha,beta,power_A,power_B,overlap_x,overlap_y,overlap_z,overlap,dim1)
       call overlap_bourrin_spread(A_center(1),B_center(1),alpha,beta,power_A(1),power_B(1),tmp,lower_exp_val,dx,dim1)
-      accu_x +=  c*(tmp*overlap_y*overlap_z)
+      accu_x +=  c*tmp*overlap_y*overlap_z
       call overlap_bourrin_spread(A_center(2),B_center(2),alpha,beta,power_A(2),power_B(2),tmp,lower_exp_val,dx,dim1)
-      accu_y +=  c*(tmp*overlap_x*overlap_z)
+      accu_y +=  c*tmp*overlap_x*overlap_z
       call overlap_bourrin_spread(A_center(3),B_center(3),alpha,beta,power_A(3),power_B(3),tmp,lower_exp_val,dx,dim1)
-      accu_z +=  c*(tmp*overlap_y*overlap_x)
+      accu_z +=  c*tmp*overlap_y*overlap_x
      enddo
     enddo
     ao_spread_x(i,j) = accu_x 
@@ -72,9 +69,9 @@
 
 
 
-  BEGIN_PROVIDER [ double precision, ao_dipole_x, (ao_num_align,ao_num)]
- &BEGIN_PROVIDER [ double precision, ao_dipole_y, (ao_num_align,ao_num)]
- &BEGIN_PROVIDER [ double precision, ao_dipole_z, (ao_num_align,ao_num)]
+  BEGIN_PROVIDER [ double precision, ao_dipole_x, (ao_num,ao_num)]
+ &BEGIN_PROVIDER [ double precision, ao_dipole_y, (ao_num,ao_num)]
+ &BEGIN_PROVIDER [ double precision, ao_dipole_z, (ao_num,ao_num)]
  BEGIN_DOC
  ! array of the integrals of AO_i * x AO_j
  ! array of the integrals of AO_i * y AO_j
@@ -109,8 +106,6 @@
    power_A(1)  = ao_power( j, 1 )
    power_A(2)  = ao_power( j, 2 )
    power_A(3)  = ao_power( j, 3 )
-   !DEC$ VECTOR ALIGNED
-   !DEC$ VECTOR ALWAYS
    do i= 1,ao_num
     B_center(1) = nucl_coord( ao_nucl(i), 1 )
     B_center(2) = nucl_coord( ao_nucl(i), 2 )
@@ -123,18 +118,17 @@
     accu_z = 0.d0
     do n = 1,ao_prim_num(j)
      alpha = ao_expo_ordered_transp(n,j)
-     !DEC$ VECTOR ALIGNED
      do l = 1, ao_prim_num(i)
       beta = ao_expo_ordered_transp(l,i)
       c = ao_coef_normalized_ordered_transp(l,i)*ao_coef_normalized_ordered_transp(n,j)
       call overlap_gaussian_xyz(A_center,B_center,alpha,beta,power_A,power_B,overlap_x,overlap_y,overlap_z,overlap,dim1)
 
       call overlap_bourrin_dipole(A_center(1),B_center(1),alpha,beta,power_A(1),power_B(1),tmp,lower_exp_val,dx,dim1)
-      accu_x = accu_x + c*(tmp*overlap_y*overlap_z)
+      accu_x = accu_x + c*tmp*overlap_y*overlap_z
       call overlap_bourrin_dipole(A_center(2),B_center(2),alpha,beta,power_A(2),power_B(2),tmp,lower_exp_val,dx,dim1)
-      accu_y = accu_y + c*(tmp*overlap_x*overlap_z)
+      accu_y = accu_y + c*tmp*overlap_x*overlap_z
       call overlap_bourrin_dipole(A_center(3),B_center(3),alpha,beta,power_A(3),power_B(3),tmp,lower_exp_val,dx,dim1)
-      accu_z = accu_z + c*(tmp*overlap_y*overlap_x)
+      accu_z = accu_z + c*tmp*overlap_y*overlap_x
     enddo
     enddo
     ao_dipole_x(i,j) = accu_x
@@ -145,9 +139,9 @@
   !$OMP END PARALLEL DO
  END_PROVIDER
 
-  BEGIN_PROVIDER [ double precision, ao_deriv_1_x, (ao_num_align,ao_num)]
- &BEGIN_PROVIDER [ double precision, ao_deriv_1_y, (ao_num_align,ao_num)]
- &BEGIN_PROVIDER [ double precision, ao_deriv_1_z, (ao_num_align,ao_num)]
+  BEGIN_PROVIDER [ double precision, ao_deriv_1_x, (ao_num,ao_num)]
+ &BEGIN_PROVIDER [ double precision, ao_deriv_1_y, (ao_num,ao_num)]
+ &BEGIN_PROVIDER [ double precision, ao_deriv_1_z, (ao_num,ao_num)]
  BEGIN_DOC
  ! array of the integrals of AO_i * d/dx  AO_j
  ! array of the integrals of AO_i * d/dy  AO_j
@@ -183,8 +177,6 @@
    power_A(1)  = ao_power( j, 1 )
    power_A(2)  = ao_power( j, 2 )
    power_A(3)  = ao_power( j, 3 )
-   !DEC$ VECTOR ALIGNED
-   !DEC$ VECTOR ALWAYS
    do i= 1,ao_num
     B_center(1) = nucl_coord( ao_nucl(i), 1 )
     B_center(2) = nucl_coord( ao_nucl(i), 2 )
@@ -197,7 +189,6 @@
     accu_z = 0.d0
     do n = 1,ao_prim_num(j)
      alpha = ao_expo_ordered_transp(n,j)
-     !DEC$ VECTOR ALIGNED
      do l = 1, ao_prim_num(i)
       beta = ao_expo_ordered_transp(l,i)
       call overlap_gaussian_xyz(A_center,B_center,alpha,beta,power_A,power_B,overlap_x,overlap_y,overlap_z,overlap,dim1)

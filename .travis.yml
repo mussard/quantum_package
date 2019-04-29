@@ -4,14 +4,21 @@
 #  - sudo apt-get install gfortran liblapack-dev gcc
 #  - sudo apt-get install graphviz
 
+os: linux
+
+dist: trusty
+
 sudo: false
+
+compiler: gfortran
 
 addons:
   apt:
     packages:
     - gfortran
     - gcc
-    - liblapack-dev
+#    - liblapack-dev
+#    - libblas-dev
     - graphviz
 
 cache:
@@ -22,12 +29,10 @@ language: python
 python:
     - "2.6"
 
-
-
 script: 
-  - ./configure  --production ./config/gfortran.cfg
-  - source ./quantum_package.rc
-  - qp_install_module.py install Full_CI Hartree_Fock
-  - ninja
-  - cd ocaml ; make ; cd -
-  - cd testing_no_regression ; ./unit_test.py
+  - ./configure  ./config/travis.cfg
+  - source ./quantum_package.rc ; qp_module.py install Full_CI Full_CI_ZMQ Hartree_Fock CAS_SD_ZMQ mrcepa0 All_singles
+  - source ./quantum_package.rc ; cd ~ ; install_lapack.sh ; cd $QP_ROOT
+  - source ./quantum_package.rc ; ninja
+  - source ./quantum_package.rc ; cd ocaml ; make ; cd -
+  - source ./quantum_package.rc ; cd tests ; ./run_tests.sh -v

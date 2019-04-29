@@ -1,4 +1,4 @@
-open Core.Std;;
+open Sexplib
 
 (*
 let rec transpose = function
@@ -12,18 +12,33 @@ let rec transpose = function
 ;;
 *)
 
-
 let input_to_sexp s =
     let result = 
-      String.split_lines s 
-      |> List.filter ~f:(fun x->
-         (String.strip x) <> "")
-      |> List.map ~f:(fun x->
-         "("^(String.tr '=' ' ' x)^")")
-      |> String.concat 
+      String_ext.split ~on:'\n' s 
+      |> List.filter (fun x-> (String_ext.strip x) <> "")
+      |> List.map (fun x-> "("^ 
+        (Str.global_replace (Str.regexp "=") " " x)
+        ^")")
+      |> String.concat ""
     in
     print_endline ("("^result^")");
     "("^result^")"
     |> Sexp.of_string
-;;
+
+let rmdir dirname =
+  let rec remove_one dir =
+    Sys.chdir dir;
+    Sys.readdir "."
+    |> Array.iter (fun x ->
+      match (Sys.is_directory x, Sys.file_exists x) with
+      | (true, _) -> remove_one x
+      | (_, true) -> Sys.remove x
+      | _ -> failwith ("Unable to remove file "^x^".")
+    );
+    Sys.chdir "..";
+    Unix.rmdir dir
+  in
+  remove_one dirname
+  
+    
 

@@ -1,7 +1,7 @@
-open Core.Std;;
-open Qptypes;;
+open Sexplib.Std
+open Qptypes
 
-type t = (Gto.t * Nucl_number.t) list with sexp;;
+type t = (Gto.t * Nucl_number.t) list [@@deriving sexp]
 
 (** Read all the basis functions of an element *)
 let read in_channel at_number =
@@ -12,11 +12,11 @@ let read in_channel at_number =
     with
     | Gto.End_Of_Basis -> List.rev result
   in read []  
-;;
+
 
 (** Find an element in the basis set file *)
 let find in_channel element =
-  In_channel.seek in_channel 0L;
+  seek_in in_channel 0;
   let element_read = ref Element.X in
   while !element_read <> element
   do
@@ -27,19 +27,21 @@ let find in_channel element =
     | Element.ElementError _ -> ()
   done ;
   !element_read
-;;
+
 
 (** Read an element from the file *)
 let read_element in_channel at_number element =
   ignore (find in_channel element) ;
-  read in_channel at_number ;
-;;
+  read in_channel at_number 
 
-let to_string b =
+
+
+let to_string_general ~fmt ~atom_sep ?ele_array b =
   let new_nucleus n = 
-    Printf.sprintf "Atom %d" n
+    match ele_array with
+    | None -> Printf.sprintf "Atom %d" n
+    | Some x -> Printf.sprintf "%s" (Element.to_string x.(n-1))
   in
-  
   let rec do_work accu current_nucleus = function
   | [] -> List.rev accu
   | (g,n)::tail -> 
@@ -47,17 +49,29 @@ let to_string b =
     in
     let accu = 
        if (n <> current_nucleus) then
-         (new_nucleus n)::""::accu
+         (new_nucleus n)::atom_sep::accu
        else
          accu
     in
-    do_work ((Gto.to_string g)::accu) n tail
+    do_work ((Gto.to_string ~fmt g)::accu) n tail
   in
   do_work [new_nucleus 1] 1 b
-  |> String.concat ~sep:"\n"
-;;
+  |> String.concat "\n"
 
-include To_md5;;
+let to_string_gamess ?ele_array =
+    to_string_general ?ele_array ~fmt:Gto.Gamess ~atom_sep:""
+
+let to_string_gaussian ?ele_array b =
+  String.concat "\n"
+  [ to_string_general ?ele_array ~fmt:Gto.Gaussian ~atom_sep:"****" b ; "****" ]
+
+let to_string ?(fmt=Gto.Gamess) =
+  match fmt with
+  | Gto.Gamess   -> to_string_gamess
+  | Gto.Gaussian -> to_string_gaussian
+
+
+include To_md5
 let to_md5 = to_md5 sexp_of_t
-;;
+
 

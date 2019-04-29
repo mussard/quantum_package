@@ -4,7 +4,7 @@ type t = {
   nuclei     : Atom.t list;
   elec_alpha : Qptypes.Elec_alpha_number.t;
   elec_beta  : Qptypes.Elec_beta_number.t;
-} with sexp
+} [@@deriving sexp]
 
 (** Returns the charge of the molecule *)
 val get_charge       : t -> Charge.t
@@ -20,10 +20,23 @@ val name : t -> string
 
 (** Conversion for printing *)
 val to_string : t -> string
+val to_xyz    : t -> string
 
 
 (** Creates a molecule from an xyz file *)
 val of_xyz_file :
+  ?charge:Charge.t -> 
+  ?multiplicity:Multiplicity.t ->
+  ?units:Units.units -> string -> t
+
+(** Creates a molecule from a zmt file *)
+val of_zmt_file :
+  ?charge:Charge.t -> 
+  ?multiplicity:Multiplicity.t ->
+  ?units:Units.units -> string -> t
+
+(** Creates a molecule from a file (xyz or zmt) *)
+val of_file :
   ?charge:Charge.t -> 
   ?multiplicity:Multiplicity.t ->
   ?units:Units.units -> string -> t
@@ -33,6 +46,10 @@ val of_xyz_string :
   ?charge:Charge.t ->
   ?multiplicity:Multiplicity.t ->
   ?units:Units.units -> string -> t
+
+(** Creates the distance matrix between all the atoms *)
+val distance_matrix :
+  t -> (float array) array
 
 (** Computes the MD5 hash *)
 val to_md5 : t -> Qptypes.MD5.t

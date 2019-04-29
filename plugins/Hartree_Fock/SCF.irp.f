@@ -13,7 +13,7 @@ end
 subroutine create_guess
   implicit none
   BEGIN_DOC
-! Create an MO guess if no MOs are present in the EZFIO directory
+!   Create a MO guess if no MOs are present in the EZFIO directory
   END_DOC
   logical                        :: exists
   PROVIDE ezfio_filename
@@ -23,7 +23,7 @@ subroutine create_guess
       mo_coef = ao_ortho_lowdin_coef
       TOUCH mo_coef
       mo_label = 'Guess'
-      call mo_as_eigvectors_of_mo_matrix(mo_mono_elec_integral,size(mo_mono_elec_integral,1),size(mo_mono_elec_integral,2),mo_label)
+      call mo_as_eigvectors_of_mo_matrix(mo_mono_elec_integral,size(mo_mono_elec_integral,1),size(mo_mono_elec_integral,2),mo_label,1,.false.)
       SOFT_TOUCH mo_coef mo_label
     else if (mo_guess_type == "Huckel") then
       call huckel_guess
@@ -34,24 +34,28 @@ subroutine create_guess
   endif
 end
 
-
 subroutine run
+
+  BEGIN_DOC
+!   Run SCF calculation
+  END_DOC
 
   use bitmasks
   implicit none
-  BEGIN_DOC
-! Run SCF calculation
-  END_DOC
-  double precision               :: SCF_energy_before,SCF_energy_after,diag_H_mat_elem,get_mo_bielec_integral
-  double precision               :: E0
+
+  double precision               :: SCF_energy_before,SCF_energy_after,diag_H_mat_elem
+  double precision               :: EHF
   integer                        :: i_it, i, j, k
    
-  E0 = HF_energy 
+  EHF = HF_energy 
 
-  thresh_SCF = 1.d-10
-  call damping_SCF
   mo_label = "Canonical"
-  TOUCH mo_label mo_coef
-  call save_mos
+
+! Choose SCF algorithm
+
+!    call damping_SCF   ! Deprecated routine
+  call Roothaan_Hall_SCF
   
 end
+
+

@@ -11,31 +11,35 @@ endif
 
 LIBS=
 PKGS=
-OCAMLCFLAGS="-g -warn-error A"
-OCAMLBUILD=ocamlbuild -j 0 -syntax camlp4o -cflags $(OCAMLCFLAGS) -lflags $(OCAMLCFLAGS) 
-MLFILES=$(wildcard *.ml) ezfio.ml Qptypes.ml Input_auto_generated.ml qp_edit.ml
-MLIFILES=$(wildcard *.mli) 
+OCAMLCFLAGS="-g"
+OCAMLBUILD=ocamlbuild -j 0 -cflags $(OCAMLCFLAGS) -lflags $(OCAMLCFLAGS) 
+MLLFILES=$(wildcard *.mll) 
+MLFILES=$(wildcard *.ml) ezfio.ml Qptypes.ml Input_auto_generated.ml qp_edit.ml 
+MLIFILES=$(wildcard *.mli) git
 ALL_TESTS=$(patsubst %.ml,%.byte,$(wildcard test_*.ml))
-ALL_EXE=$(patsubst %.ml,%.native,$(wildcard qp_*.ml)) qp_edit.native
+ALL_EXE=$(patsubst %.ml,%.native,$(wildcard qp_*.ml)) qp_edit.native element_create_db.byte
 
 .PHONY: executables default remake_executables
 
 
-default: $(ALL_TESTS) $(ALL_EXE) .gitignore
+default: $(ALL_EXE) .gitignore
+tests: $(ALL_TESTS) 
 
-.gitignore: $(MLFILES)
-	@for i in .gitignore ezfio.ml Qptypes.ml qptypes_generator.byte _build $(ALL_EXE) $(ALL_TESTS) \
+.gitignore: $(MLFILES) $(MLIFILES)
+	@for i in .gitignore ezfio.ml Qptypes.ml Git.ml qptypes_generator.byte _build $(ALL_EXE) $(ALL_TESTS) \
 	$(patsubst %.ml,%,$(wildcard test_*.ml)) $(patsubst %.ml,%,$(wildcard qp_*.ml)) \
 	$(shell grep Input Input_auto_generated.ml | awk '{print $$2 ".ml"}') \
 	qp_edit.ml qp_edit qp_edit.native Input_auto_generated.ml;\
 	do \
 	   echo $$i ; \
-	done > .gitignore
+	done |sort | uniq > .gitignore
 
 executables: $(QP_ROOT)/data/executables
 
-$(QP_ROOT)/data/executables: remake_executables
+
+$(QP_ROOT)/data/executables: remake_executables element_create_db.byte Qptypes.ml
 	$(QP_ROOT)/scripts/module/create_executables_list.sh
+	$(QP_ROOT)/ocaml/element_create_db.byte
 
 external_libs:
 	opam install cryptokit core
@@ -71,12 +75,15 @@ qptypes_generator.byte: qptypes_generator.ml
 Qptypes.ml: qptypes_generator.byte
 	./qptypes_generator.byte > Qptypes.ml
 
+git: 
+	./create_git_sha1.sh
+
 ${QP_ROOT}/install/EZFIO/Ocaml/ezfio.ml: 
 	$(NINJA) -C ${QP_ROOT}/install/EZFIO
 
-Input_auto_generated.ml qp_edit.ml:
+Input_auto_generated.ml qp_edit.ml: $(filter-out Input_auto_generated.ml, $(wildcard Input_*.ml))
 	ei_handler.py ocaml_global
 
 clean: 
-	rm -rf _build Qptypes.ml Input_auto_generated.ml $(ALL_EXE) $(ALL_TESTS)
+	rm -rf _build Qptypes.ml Git.ml Input_auto_generated.ml $(ALL_EXE) $(ALL_TESTS)
 

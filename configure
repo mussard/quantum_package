@@ -1,40 +1,32 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """configure
 
-Usage: configure <config_file> (--production | --development)
+Usage: configure <config_file> 
 
 
 Options:
 
-    config_file   A config file with all the information for the compilation
+    config_file   A config file with all the information for compiling.
                   Example config_files are given in config/
-
-   --production   You can only compile all the modules with this flag,
-                  but the compilation will be lighting fast
-
-   --development  It will create a build.ninja for each directory
-                  who contains a binary, than you can compile then
-                  individualy if you want
 
 Examples:
 
-    ./configure config/gfortran.cfg --production
-    ./configure config/ifort.cfg    --development
+    ./configure config/gfortran.cfg 
+    ./configure config/ifort.cfg    
 
 
 """
 
+OK="✓"
+FAIL="✗"
 import subprocess
 import os
 import sys
 
 from os.path import join
 
-if not any(i in ["--production", "--development"] for i in sys.argv):
-    print __doc__
-    sys.exit()
-if len(sys.argv) != 3:
+if len(sys.argv) != 2:
     print __doc__
     sys.exit()
 
@@ -43,14 +35,21 @@ if len(sys.argv) != 3:
 # \_| |_ (_) |_) (_| |   | | | | (_)
 #
 
-QP_ROOT = os.getcwd()
+try:
+  QP_ROOT = os.environ["QP_ROOT"]
+except KeyError:
+  QP_ROOT = os.getcwd()
+  os.environ["QP_ROOT"] = QP_ROOT
+
 QP_ROOT_BIN = join(QP_ROOT, "bin")
+QP_ROOT_LIB = join(QP_ROOT, "lib")
+QP_ROOT_LIB64 = join(QP_ROOT, "lib64")
 QP_ROOT_INSTALL = join(QP_ROOT, "install")
 
 os.environ["PATH"] = os.environ["PATH"] + ":" + QP_ROOT_BIN
 
 d_dependency = {
-    "ocaml": ["m4", "curl", "zlib", "patch", "gcc"],
+    "ocaml": ["m4", "curl", "zlib", "patch", "gcc", "zeromq", "gmp"],
     "m4": ["make"],
     "curl": ["make"],
     "zlib": ["gcc", "make"],
@@ -61,10 +60,15 @@ d_dependency = {
     "resultsFile": ["python"],
     "emsl": ["python"],
     "gcc": [],
+    "g++": [],
+    "zeromq" : [ "g++", "make" ],
+    "f77zmq" : [ "zeromq", "python", "make" ],
     "python": [],
-    "ninja": ["gcc", "python"],
+    "ninja": ["g++", "python"],
     "make": [],
-    "p_graphviz": ["python"]
+    "p_graphviz": ["python"],
+    "bats": [],
+    "gmp" : ["make", "g++"]
 }
 
 from collections import namedtuple
@@ -72,10 +76,15 @@ from collections import namedtuple
 Info = namedtuple("Info", ["url", "description", "default_path"])
 
 path_github = {"head": "http://github.com", "tail": "archive/master.tar.gz"}
+def path_gitlab(user,project,branch):
+  """For example,
+      https://gitlab.com/scemama/resultsFile/-/archive/master/resultsFile-master.tar.gz
+  """
+  return "http://gitlab.com/%(user)s/%(project)s/-/archive/%(branch)s/%(project)s-%(branch)s.tar.gz"%locals()
 
 ocaml = Info(
     url='http://raw.github.com/ocaml/opam/master/shell/opam_installer.sh',
-    description=' Ocaml, Opam and the Core library (it will take some time roughly 20min)',
+    description=' OCaml, Opam and the Core library (it will take some time roughly 20min)',
     default_path=join(QP_ROOT_BIN, "opam"))
 
 m4 = Info(
@@ -89,14 +98,14 @@ curl = Info(
     default_path=join(QP_ROOT_BIN, "curl"))
 
 zlib = Info(
-    url='http://zlib.net/zlib-1.2.8.tar.gz',
+    url='http://www.zlib.net/zlib-1.2.11.tar.gz',
     description=' zlib',
-    default_path=join(QP_ROOT_INSTALL, "zlib"))
+    default_path=join(QP_ROOT_LIB, "libz.a"))
 
-path = Info(
+patch = Info(
     url='ftp://ftp.gnu.org/gnu/patch/patch-2.7.5.tar.gz',
-    description=' path',
-    default_path=join(QP_ROOT, "lib", "libz.a"))
+    description=' patch',
+    default_path=join(QP_ROOT_BIN, "patch"))
 
 irpf90 = Info(
     url='{head}/LCPQ/irpf90/{tail}'.format(**path_github),
@@ -109,35 +118,55 @@ docopt = Info(
     default_path=join(QP_ROOT_INSTALL, "docopt"))
 
 resultsFile = Info(
-    url='{head}/LCPQ/resultsFile/{tail}'.format(**path_github),
+    url=path_gitlab("scemama","resultsFile","master"),
     description=' resultsFile',
     default_path=join(QP_ROOT_INSTALL, "resultsFile"))
 
 ninja = Info(
     url='{head}/martine/ninja/{tail}'.format(**path_github),
-    description=' nina',
+    description=' ninja',
     default_path=join(QP_ROOT_BIN, "ninja"))
 
 emsl = Info(
-    url='{head}/LCPQ/EMSL_Basis_Set_Exchange_Local/{tail}'.format(**
-                                                                  path_github),
+    url='{head}/LCPQ/EMSL_Basis_Set_Exchange_Local/{tail}'.format(**path_github),
     description=' EMSL basis set library',
     default_path=join(QP_ROOT_INSTALL, "emsl"))
 
 ezfio = Info(
-    url='{head}/LCPQ/EZFIO/{tail}'.format(**path_github),
+    url='https://gitlab.com/scemama/EZFIO/-/archive/v1.3.5/EZFIO-v1.3.5.tar.gz',
     description=' EZFIO',
     default_path=join(QP_ROOT_INSTALL, "EZFIO"))
+
+zeromq = Info(
+    url='https://github.com/zeromq/zeromq4-1/releases/download/v4.1.5/zeromq-4.1.5.tar.gz',
+    description=' ZeroMQ',
+    default_path=join(QP_ROOT_LIB, "libzmq.a"))
+
+gmp= Info(
+    url='ftp://ftp.gnu.org/gnu/gmp/gmp-6.1.2.tar.bz2',
+    description=' The GNU Multiple Precision Arithmetic Library',
+    default_path=join(QP_ROOT_LIB, "libgmp.a"))
+
+f77zmq = Info(
+    url='{head}/zeromq/f77_zmq/{tail}'.format(**path_github),
+    description=' F77-ZeroMQ',
+    default_path=join(QP_ROOT_LIB, "libf77zmq.a") )
 
 p_graphviz = Info(
     url='https://github.com/xflr6/graphviz/archive/master.tar.gz',
     description=' Python library for graphviz',
     default_path=join(QP_ROOT_INSTALL, "p_graphviz"))
 
+bats = Info(
+    url='https://github.com/sstephenson/bats/archive/master.tar.gz',
+    description=' Bash Automated Testing System',
+    default_path=join(QP_ROOT_INSTALL, "bats"))
+
 d_info = dict()
 
-for m in ["ocaml", "m4", "curl", "zlib", "path", "irpf90", "docopt",
-          "resultsFile", "ninja", "emsl", "ezfio", "p_graphviz"]:
+for m in ["ocaml", "m4", "curl", "zlib", "patch", "irpf90", "docopt",
+          "resultsFile", "ninja", "emsl", "ezfio", "p_graphviz",
+          "zeromq", "f77zmq", "bats", "gmp"]: 
     exec ("d_info['{0}']={0}".format(m))
 
 
@@ -163,7 +192,7 @@ def find_path(bin_, l_installed, var_for_qp_root=False):
 # | |_| | | (_  |_ | (_) | |
 #
 def check_output(*popenargs, **kwargs):
-    """Run command with arguments and return its output as a byte string.
+    """Run command with arguments and return its output as a string.
 
     Backported from Python 2.7 as it's implemented as pure python on stdlib.
 
@@ -188,8 +217,7 @@ def check_output(*popenargs, **kwargs):
 
 def checking(d_dependency):
     """
-    For each key in d_dependency check if it
-    it avalabie or not
+    For each key in d_dependency check if it is avalabie 
     """
 
     def check_python():
@@ -205,8 +233,8 @@ def checking(d_dependency):
 
     def check_availability(binary):
         """
-        If avalable return the path who can find the
-        binary else return 0
+        If avalable return the path where the binary 
+        can be found, else return 0
         """
 
         if binary == "python":
@@ -254,12 +282,12 @@ def checking(d_dependency):
 
     """
 
-    print "Checking what you need to install and what is it avalaible"
+    print "Checking what you need to install and what is avalaible"
     print ""
     l_installed = dict()
     l_needed = []
 
-    # Check all the other
+    # Check all the others
     length = max(map(len, d_dependency))
 
     for i in d_dependency.keys():
@@ -267,14 +295,14 @@ def checking(d_dependency):
 
         r = check_availability(i)
         if r:
-            print "[  OK  ] ( {0} )".format(r.strip())
+            print OK+" ( {0} )".format(r.strip())
             l_installed[i] = r.strip()
         else:
-            print "[ FAIL ]"
+            print FAIL
             l_needed.append(i)
     print ""
 
-    # Expend the need_stuff for all the genealogy
+    # Expand the needed stuff for all the genealogy
     l_install_descendant = get_list_descendant(d_dependency, l_installed,
                                                l_needed)
 
@@ -305,7 +333,7 @@ def installation(l_install_descendant):
 
         l_rules += [
             "rule install_verbose",
-            "  command = ./scripts/install_${target}.sh | tee _build/${target}.log 2>&1",
+            '  command = bash -o pipefail -c "./scripts/install_${target}.sh | tee _build/${target}.log 2>&1"  ',
             "  description = Installing ${descr}", "  pool = console", ""
         ]
 
@@ -327,7 +355,7 @@ _|_ | | _>  |_ (_| | | (_|  |_ | (_) | |
     d_print = {
         "install_ninja": "Install ninja...",
         "build": "Creating build.ninja...",
-        "install": "Installing the dependency through ninja..."
+        "install": "Installing the dependencies using Ninja..."
     }
 
     length = max(map(len, d_print.values()))
@@ -352,7 +380,7 @@ _|_ | | _>  |_ (_| | | (_|  |_ | (_) | |
         except:
             raise
         else:
-            print "[  OK  ]"
+            print OK
 
         l_install_descendant.remove("ninja")
 
@@ -371,7 +399,7 @@ _|_ | | _>  |_ (_| | | (_|  |_ | (_) | |
         descr = d_info[need].description
         default_path = d_info[need].default_path
 
-        # Build to dowload
+        # Build to download
         l_build += ["build {0}: download".format(archive_path),
                     "   url = {0}".format(url), "   descr = {0}".format(descr),
                     ""]
@@ -395,15 +423,24 @@ _|_ | | _>  |_ (_| | | (_|  |_ | (_) | |
     with open(path, "w+") as f:
         f.write("\n".join(l_string))
 
-    print " [  OK  ] ({0})".format(path)
+    print OK+" ({0})".format(path)
 
     print str_info("install"),
-    print " [ Running ]"
+    print "Running"
     try:
         path_ninja = find_path("ninja", l_installed)
         subprocess.check_call("cd install ;{0}".format(path_ninja), shell=True)
     except:
-        raise
+        prefix = os.path.join('install', '_build')
+        for filename in os.listdir(prefix):
+            if filename.endswith(".log"):
+                with open( os.path.join(prefix,filename) ,'r') as f:
+                    print "\n\n"
+                    print "=-=-=-=-=-=- %s =-=-=-=-=-=-" %(filename)
+                    print f.read()
+                    print "=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n"
+        print "Error in installation of dependencies"
+        sys.exit(1)
     else:
         print r"""
  _________
@@ -436,11 +473,12 @@ def create_ninja_and_rc(l_installed):
     print str_info("qp_root"),
     python_path = [join(QP_ROOT, "scripts"), join(QP_ROOT, "install")]
 
-    l_python = [join(QP_ROOT, "scripts")]
+    l_python = [join("${QP_ROOT}", "scripts")]
     for dir_ in python_path:
         for folder in os.listdir(dir_):
             path = join(dir_, folder)
             if os.path.isdir(path):
+                path = path.replace(QP_ROOT,"${QP_ROOT}")
                 l_python.append(path)
 
     path_ezfio = find_path('ezfio', l_installed, var_for_qp_root=True)
@@ -449,24 +487,43 @@ def create_ninja_and_rc(l_installed):
 
     l_rc = [
         'export QP_ROOT={0}'.format(QP_ROOT),
-        'export QP_EZFIO={0}'.format(path_ezfio),
-        'export IRPF90={0}'.format(path_irpf90),
-        'export NINJA={0}'.format(path_ninja),
+        'export QP_EZFIO={0}'.format(path_ezfio.replace(QP_ROOT,"${QP_ROOT}")),
         'export QP_PYTHON={0}'.format(":".join(l_python)), "",
-        'export PYTHONPATH="${QP_EZFIO}":"${QP_PYTHON}":"${PYTHONPATH}"',
-        'export PATH="${QP_PYTHON}":"${QP_ROOT}"/bin:"${QP_ROOT}"/ocaml:"${PATH}"',
-        'export LD_LIBRARY_PATH="${QP_ROOT}"/lib:"${LD_LIBRARY_PATH}"',
-        'export LIBRARY_PATH="${QP_ROOT}"/lib:"${LIBRARY_PATH}"', "",
-        'source ${QP_ROOT}/install/EZFIO/Bash/ezfio.sh', "",
-        'source ${HOME}/.opam/opam-init/init.sh > /dev/null 2> /dev/null || true',
-        ""
+        'export IRPF90={0}'.format(path_irpf90.replace(QP_ROOT,"${QP_ROOT}")),
+        'export NINJA={0}'.format(path_ninja.replace(QP_ROOT,"${QP_ROOT}")),
+        'function qp_prepend_export () {',
+        '  #Prepend path $2:${!1}. Add the semicolon only if ${!1} is defined',
+        '  eval "value_1=\"\${$1}\""',
+        '  echo ${value_1:+${value_1}:}${2}',
+        '}',
+        'export PYTHONPATH=$(qp_prepend_export "PYTHONPATH" "${QP_EZFIO}/Python":"${QP_PYTHON}")',
+        'export PATH=$(qp_prepend_export "PATH" "${QP_PYTHON}":"${QP_ROOT}"/bin:"${QP_ROOT}"/ocaml)',
+        'export LD_LIBRARY_PATH=$(qp_prepend_export "LD_LIBRARY_PATH" "${QP_ROOT}"/lib:"${QP_ROOT}"/lib64)',
+        'export LIBRARY_PATH=$(qp_prepend_export "LIBRARY_PATH" "${QP_ROOT}"/lib:"${QP_ROOT}"/lib64)',
+        'export C_INCLUDE_PATH=$(qp_prepend_export "C_INCLUDE_PATH" "${QP_ROOT}"/include)',
+        '',
+        'if [[ $SHELL == "bash" ]] ; then',
+        '  source ${QP_ROOT}/install/EZFIO/Bash/ezfio.sh',
+        'fi',
+        '',
+        '# Choose the correct network interface',
+        '# export QP_NIC=ib0',
+        '# export QP_NIC=eth0',
+        ''
     ]
+
+    qp_opam_root = os.getenv('OPAMROOT')
+    if not qp_opam_root:
+        qp_opam_root = '${HOME}/.opam'
+    l_rc.append('export QP_OPAM={0}'.format(qp_opam_root))
+    l_rc.append('source ${QP_OPAM}/opam-init/init.sh > /dev/null 2> /dev/null || true')
+    l_rc.append('')
 
     path = join(QP_ROOT, "quantum_package.rc")
     with open(path, "w+") as f:
         f.write("\n".join(l_rc))
 
-    print "[  OK  ] ({0})".format(path)
+    print OK+" ({0})".format(path)
 
     command = ['bash', '-c', 'source {0} && env'.format(path)]
     proc = subprocess.Popen(command, stdout=subprocess.PIPE)
@@ -479,29 +536,35 @@ def create_ninja_and_rc(l_installed):
     qp_create_ninja = os.path.join(QP_ROOT, "scripts", "compilation",
                                    "qp_create_ninja.py")
 
-    l = [qp_create_ninja, "create"] + sys.argv[1:]
+    l = [qp_create_ninja, "create", "--development"] + sys.argv[1:]
 
     try:
         with open('/dev/null', 'w') as dnull:
-            subprocess.check_call(" ".join(l), shell=True,stderr=dnull)
+            subprocess.check_call(" ".join(l), shell=True, stderr=dnull)
     except:
         print "[ FAIL ]"
-        print "Check the valididy of the config file provided ({0})".format(sys.argv[1])
+        print "Check the validity of the config file provided ({0})".format(sys.argv[1])
         print "Exit..."
+        raise
         sys.exit(1)
 
     else:
-        print "[  OK  ]"
+        print OK
 
 
 def recommendation():
     path = join(QP_ROOT, "quantum_package.rc")
     print "Now :"
     print "   source {0}".format(path)
-    print "   ninja"
-    print "   make -C ocaml"
     print ""
-    print "PS : For more info on compiling the code, read the COMPILE_RUN.md file."
+    print "Then, install the modules you want to install using :"
+    print "    qp_module.py"
+    print ""
+    print "Finally :"
+    print "   ninja"
+    print ""
+    print "You can install more plugin with the qp_module.py install command" 
+    print "PS : For more info on compiling the code, read the README.md"
 
 
 if __name__ == '__main__':
@@ -519,3 +582,4 @@ if __name__ == '__main__':
     create_ninja_and_rc(l_installed)
 
     recommendation()
+

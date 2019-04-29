@@ -2,11 +2,11 @@ use bitmasks
 use omp_lib
 
 type H_apply_buffer_type
-integer                        :: N_det
-integer                        :: sze
-integer(bit_kind), pointer     :: det(:,:,:)
-double precision , pointer     :: coef(:,:)
-double precision , pointer     :: e2(:,:)
+  integer                        :: N_det
+  integer                        :: sze
+  integer(bit_kind), pointer     :: det(:,:,:)
+  double precision , pointer     :: coef(:,:)
+  double precision , pointer     :: e2(:,:)
 end type H_apply_buffer_type
 
 type(H_apply_buffer_type), pointer :: H_apply_buffer(:)
@@ -41,6 +41,15 @@ type(H_apply_buffer_type), pointer :: H_apply_buffer(:)
     call omp_init_lock(H_apply_buffer_lock(1,iproc))
     !$OMP END PARALLEL
   endif
+  do iproc=2,nproc-1
+    if (.not.associated(H_apply_buffer(iproc)%det)) then
+      print *,  ' ===================== Error =================== '
+      print *,  'H_apply_buffer_allocated  should be provided outside'
+      print *,  'of an OpenMP section'
+      print *,  ' =============================================== '
+      stop
+    endif
+  enddo
   
 END_PROVIDER
 
@@ -67,7 +76,8 @@ subroutine resize_H_apply_buffer(new_size,iproc)
   allocate ( buffer_det(N_int,2,new_size),                           &
       buffer_coef(new_size,N_states),                                &
       buffer_e2(new_size,N_states) )
-  
+  buffer_coef = 0.d0 
+  buffer_e2 = 0.d0 
   do i=1,min(new_size,H_apply_buffer(iproc)%N_det)
     do k=1,N_int
       buffer_det(k,1,i) = H_apply_buffer(iproc)%det(k,1,i)
@@ -111,7 +121,6 @@ subroutine copy_H_apply_buffer_to_wf
   double precision, allocatable  :: buffer_coef(:,:)
   integer                        :: i,j,k
   integer                        :: N_det_old
-  integer                        :: iproc
   
   PROVIDE H_apply_buffer_allocated
   
@@ -158,7 +167,7 @@ subroutine copy_H_apply_buffer_to_wf
   enddo
   !$OMP PARALLEL DEFAULT(SHARED)                                     &
       !$OMP PRIVATE(j,k,i) FIRSTPRIVATE(N_det_old)                   &
-      !$OMP SHARED(N_int,H_apply_buffer,psi_det,psi_coef,N_states)
+      !$OMP SHARED(N_int,H_apply_buffer,psi_det,psi_coef,N_states,psi_det_size)
   j=0
   !$ j=omp_get_thread_num()
   do k=0,j-1
@@ -183,8 +192,8 @@ subroutine copy_H_apply_buffer_to_wf
   call normalize(psi_coef,N_det)
   SOFT_TOUCH N_det psi_det psi_coef
   
-  logical :: found_duplicates
-  call remove_duplicates_in_psi_det(found_duplicates)
+!  logical :: found_duplicates
+!  call remove_duplicates_in_psi_det(found_duplicates)
 end
 
 subroutine remove_duplicates_in_psi_det(found_duplicates)
@@ -214,7 +223,11 @@ subroutine remove_duplicates_in_psi_det(found_duplicates)
     do while (bit_tmp(j)==bit_tmp(i))
       if (duplicate(j)) then
         j += 1
-        cycle
+        if (j > N_det) then
+          exit
+        else
+          cycle
+        endif
       endif
       duplicate(j) = .True.
       do k=1,N_int
@@ -240,20 +253,24 @@ subroutine remove_duplicates_in_psi_det(found_duplicates)
   enddo
 
   if (found_duplicates) then
-    call write_bool(output_determinants,found_duplicates,'Found duplicate determinants')
     k=0
     do i=1,N_det
       if (.not.duplicate(i)) then
         k += 1
         psi_det(:,:,k) = psi_det_sorted_bit (:,:,i)
         psi_coef(k,:)  = psi_coef_sorted_bit(i,:)
+      else
+        call debug_det(psi_det_sorted_bit(1,1,i),N_int)
+        stop 'duplicates in psi_det'
       endif
     enddo
     N_det = k
-    TOUCH N_det psi_det psi_coef
+    call write_bool(6,found_duplicates,'Found duplicate determinants')
+    SOFT_TOUCH N_det psi_det psi_coef
   endif
   deallocate (duplicate,bit_tmp)
 end
+
 
 subroutine fill_H_apply_buffer_no_selection(n_selected,det_buffer,Nint,iproc)
   use bitmasks
@@ -295,6 +312,141 @@ subroutine fill_H_apply_buffer_no_selection(n_selected,det_buffer,Nint,iproc)
     ASSERT (sum(popcnt(H_apply_buffer(iproc)%det(:,2,i))) == elec_beta_num)
   enddo
   call omp_unset_lock(H_apply_buffer_lock(1,iproc))
+end
+
+subroutine push_pt2(zmq_socket_push,pt2,norm_pert,H_pert_diag,i_generator,N_st,task_id)
+  use f77_zmq
+  implicit none
+  BEGIN_DOC
+! Push PT2 calculation to the collector
+  END_DOC
+  integer(ZMQ_PTR), intent(in)   :: zmq_socket_push
+  integer, intent(in)            :: N_st, i_generator
+  double precision, intent(in)   :: pt2(N_st), norm_pert(N_st), H_pert_diag(N_st)
+  integer, intent(in)            :: task_id
+  integer :: rc
+
+  rc = f77_zmq_send( zmq_socket_push, 1, 4, ZMQ_SNDMORE)
+  if (rc /= 4) then
+    print *, irp_here,  'f77_zmq_send( zmq_socket_push, 1, 4, ZMQ_SNDMORE)'
+    stop 'error'
+  endif
+
+  rc = f77_zmq_send( zmq_socket_push, pt2, 8*N_st, ZMQ_SNDMORE)
+  if (rc /= 8*N_st) then
+    print *, irp_here,  'f77_zmq_send( zmq_socket_push, pt2, 8*N_st, ZMQ_SNDMORE)'
+    stop 'error'
+  endif
+
+  rc = f77_zmq_send( zmq_socket_push, norm_pert, 8*N_st, ZMQ_SNDMORE)
+  if (rc /= 8*N_st) then
+    print *, irp_here,  'f77_zmq_send( zmq_socket_push, norm_pert, 8*N_st, ZMQ_SNDMORE)'
+    stop 'error'
+  endif
+
+  rc = f77_zmq_send( zmq_socket_push, H_pert_diag, 8*N_st, ZMQ_SNDMORE)
+  if (rc /= 8*N_st) then
+    print *, irp_here,  'f77_zmq_send( zmq_socket_push, H_pert_diag, 8*N_st, ZMQ_SNDMORE)'
+    stop 'error'
+  endif
+
+  rc = f77_zmq_send( zmq_socket_push, i_generator, 4, ZMQ_SNDMORE)
+  if (rc /= 4) then
+    print *, irp_here,  'f77_zmq_send( zmq_socket_push, i_generator, 4, 0)'
+    stop 'error'
+  endif
+
+  rc = f77_zmq_send( zmq_socket_push, task_id, 4, 0)
+  if (rc /= 4) then
+    print *, irp_here,  'f77_zmq_send( zmq_socket_push, task_id, 4, 0)'
+    stop 'error'
+  endif
+
+! Activate if zmq_socket_push is a REQ
+IRP_IF ZMQ_PUSH
+IRP_ELSE
+  integer :: idummy
+  rc = f77_zmq_recv( zmq_socket_push, idummy, 4, 0)
+  if (rc /= 4) then
+    print *, irp_here, 'f77_zmq_send( zmq_socket_push, idummy, 4, 0)'
+    stop 'error'
+  endif
+IRP_ENDIF
+
+end
+
+subroutine pull_pt2(zmq_socket_pull,pt2,norm_pert,H_pert_diag,i_generator,N_st,n,task_id)
+  use f77_zmq
+  implicit none
+  BEGIN_DOC
+! Pull PT2 calculation in the collector
+  END_DOC
+  integer(ZMQ_PTR), intent(in)   :: zmq_socket_pull
+  integer, intent(in)            :: N_st
+  double precision, intent(out)  :: pt2(N_st), norm_pert(N_st), H_pert_diag(N_st)
+  integer, intent(out)           :: task_id
+  integer, intent(out)           :: n, i_generator
+  integer                        :: rc
+
+  n=0
+  rc = f77_zmq_recv( zmq_socket_pull, n, 4, 0)
+  if (rc == -1) then
+    n=9
+    return
+  endif
+  if (rc /= 4) then
+    print *, irp_here,  'f77_zmq_recv( zmq_socket_pull, n, 4, 0)'
+    stop 'error'
+  endif
+
+  if (n > 0) then
+
+    rc = f77_zmq_recv( zmq_socket_pull, pt2(1), 8*N_st, 0)
+    if (rc /= 8*N_st) then
+      print *,  ''
+      print *,  ''
+      print *,  ''
+      print *, irp_here,  'f77_zmq_recv( zmq_socket_pull, pt2(1) , 8*N_st, 0)'
+      print *,  rc
+      stop 'error'
+    endif
+
+    rc = f77_zmq_recv( zmq_socket_pull, norm_pert(1), 8*N_st, 0)
+    if (rc /= 8*N_st) then
+      print *, irp_here,  'f77_zmq_recv( zmq_socket_pull, norm_pert(1,1), 8*N_st)'
+      stop 'error'
+    endif
+
+    rc = f77_zmq_recv( zmq_socket_pull, H_pert_diag(1), 8*N_st, 0)
+    if (rc /= 8*N_st) then
+      print *, irp_here,  'f77_zmq_recv( zmq_socket_pull, H_pert_diag(1,1), 8*N_st)'
+      stop 'error'
+    endif
+
+    rc = f77_zmq_recv( zmq_socket_pull, i_generator, 4, 0)
+    if (rc /= 4) then
+      print *, irp_here,  'f77_zmq_recv( zmq_socket_pull, i_generator, 4, 0)'
+      stop 'error'
+    endif
+
+    rc = f77_zmq_recv( zmq_socket_pull, task_id, 4, 0)
+    if (rc /= 4) then
+      print *, irp_here,  'f77_zmq_recv( zmq_socket_pull, task_id, 4, 0)'
+      stop 'error'
+    endif
+
+  endif
+
+! Activate if zmq_socket_pull is a REP
+IRP_IF ZMQ_PUSH
+IRP_ELSE
+  rc = f77_zmq_send( zmq_socket_pull, 0, 4, 0)
+  if (rc /= 4) then
+    print *, irp_here,  'f77_zmq_send( zmq_socket_pull, 0, 4, 0)'
+    stop 'error'
+  endif
+IRP_ENDIF
+
 end
 
 

@@ -1,10 +1,10 @@
 
-BEGIN_PROVIDER [ double precision, mo_overlap,(mo_tot_num_align,mo_tot_num)]
+BEGIN_PROVIDER [ double precision, mo_overlap,(mo_tot_num,mo_tot_num)]
   implicit none
   integer :: i,j,n,l
   double precision :: f
   integer :: lmax
-  lmax = iand(ao_num,-4)
+  lmax = (ao_num/4) * 4
   !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) &
   !$OMP  PRIVATE(i,j,n,l) &
   !$OMP  SHARED(mo_overlap,mo_coef,ao_overlap, &
@@ -13,7 +13,6 @@ BEGIN_PROVIDER [ double precision, mo_overlap,(mo_tot_num_align,mo_tot_num)]
    do i= 1,mo_tot_num
     mo_overlap(i,j) = 0.d0
     do n = 1, lmax,4
-     !DIR$ VECTOR ALIGNED
      do l = 1, ao_num
       mo_overlap(i,j) = mo_overlap(i,j) + mo_coef(l,i) * &
            ( mo_coef(n  ,j) * ao_overlap(l,n  )  &
@@ -23,7 +22,6 @@ BEGIN_PROVIDER [ double precision, mo_overlap,(mo_tot_num_align,mo_tot_num)]
      enddo
     enddo
     do n = lmax+1, ao_num
-     !DIR$ VECTOR ALIGNED
      do l = 1, ao_num
       mo_overlap(i,j) = mo_overlap(i,j) + mo_coef(n,j) * mo_coef(l,i) * ao_overlap(l,n)
      enddo
